@@ -1,0 +1,9 @@
+# Ignore everything
+*
+
+# Except
+!.gitignore
+!README.md
+!datasets.tsv
+!checksums.sha256
+!download.sh
