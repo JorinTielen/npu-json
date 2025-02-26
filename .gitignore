@@ -1,0 +1,5 @@
+# Python
+.venv/
+
+# User provided script
+setup_vitis.sh
