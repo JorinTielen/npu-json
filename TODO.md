@@ -1,7 +1,7 @@
 # TODO
 
-- [ ] Setup benchmark download script
-- [ ] List of benchmark documents + queries
+- [x] Setup benchmark download script
+- [x] List of benchmark documents + queries
 - [ ] Run the queries using `jq` or `rsonpath` as a test
 - [ ] Document why these queries
 - [ ] Document sequence of kernels with inputs and outputs required
