@@ -1,0 +1,4 @@
+-f https://github.com/Xilinx/mlir-aie/releases/expanded_assets/latest-wheels/
+-f https://github.com/Xilinx/llvm-aie/releases/expanded_assets/nightly
+mlir_aie
+llvm-aie

@@ -1,5 +1,13 @@
 # Python
 .venv/
+__pycache__/
 
 # User provided script
 setup_vitis.sh
+
+# Editor configuration
+.vscode/*
+!.vscode/c_cpp_properties.json
+
+# ClangD cache
+.cache/
