@@ -8,11 +8,11 @@ if (pip show mlir_aie &>/dev/null) && (pip show llvm-aie &>/dev/null); then
 fi
 
 # MLIR-AIE still does not expose these binaries through the virtual env and have to be added to the PATH manually.
-# if [ -v LLVM_AIE_INSTALL_DIR ] && [ -v MLIR_AIE_INSTALL_DIR ]; then
+if [ -v LLVM_AIE_INSTALL_DIR ] && [ -v MLIR_AIE_INSTALL_DIR ]; then
   export PATH=${LLVM_AIE_INSTALL_DIR}/bin:${MLIR_AIE_INSTALL_DIR}/bin:${PATH}
   export PYTHONPATH=${MLIR_AIE_INSTALL_DIR}/python:${PYTHONPATH}
   export LD_LIBRARY_PATH=${LLVM_AIE_INSTALL_DIR}/bin:${MLIR_AIE_INSTALL_DIR}/lib:${LD_LIBRARY_PATH}
-# fi
+fi
 
 export PEANO_INSTALL_DIR=$LLVM_AIE_INSTALL_DIR
 export MLIR_AIE_INSTALL_DIR=$MLIR_AIE_INSTALL_DIR
