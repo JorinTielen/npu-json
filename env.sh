@@ -14,5 +14,6 @@ if [ -v LLVM_AIE_INSTALL_DIR ] && [ -v MLIR_AIE_INSTALL_DIR ]; then
   export LD_LIBRARY_PATH=${LLVM_AIE_INSTALL_DIR}/bin:${MLIR_AIE_INSTALL_DIR}/lib:${LD_LIBRARY_PATH}
 fi
 
-export PEANO_INSTALL_DIR=$LLVM_AIE_INSTALL_DIR
-export MLIR_AIE_INSTALL_DIR=$MLIR_AIE_INSTALL_DIR
+# Add `pth` file pointing to MLIR-AIE python package, to support tooling such as Pylance.
+venv_site_packages=`python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])'`
+[ -f $venv_site_packages/mlir-aie.pth ] || echo ${MLIR_AIE_INSTALL_DIR}/python > $venv_site_packages/mlir-aie.pth
