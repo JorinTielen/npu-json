@@ -11,10 +11,23 @@
 - [x] Setup MLIR-AIE build process
 - [x] Setup MLIR-AIE hello world (string indexer)
 - [x] Setup benchmark for string indexer
-- [ ] Setup test for string indexer (FileCheck or other i/o test)
+- [ ] Setup JSON processing skeleton
+  - Interface: given a file and a query, return output
+    - What is the output datatype?
+  - Main "event loop" for JSONPath automaton
+  - Iterate over file in chunks, calling npu to index each chunk
+  - Could implement CPU version of index construction kernels for testing
+- [ ] Setup test framework (FileCheck or other i/o test)
+  - Build special small "unit"-test executables that run NPU kernels
+  - Tests for CPU side JSONPath query parsing
+  - End-to-end test with both CPU and NPU indexer
   - Small JSON file and expected index specified in test
-  - (Optional) Set up linters
+- [ ] (Optional) Set up fancy developer tooling
+  - Set up linters
     - `clangd-format` or/and `clangd-tidy` for C++
-    - Something for Python
+    - Python: linter and type checking
     - Shellcheck
-  - (Optional) How to run tests on GitHub Actions (SSH or simulator?)
+  - Add license & header to all source files (script)
+  - How to run tests on GitHub Actions (SSH or simulator?)
+    - Maybe only run CPU side tests on CI
+
