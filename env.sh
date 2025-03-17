@@ -12,6 +12,7 @@ if [ -v LLVM_AIE_INSTALL_DIR ] && [ -v MLIR_AIE_INSTALL_DIR ]; then
   export PATH=${LLVM_AIE_INSTALL_DIR}/bin:${MLIR_AIE_INSTALL_DIR}/bin:${PATH}
   export PYTHONPATH=${MLIR_AIE_INSTALL_DIR}/python:${PYTHONPATH}
   export LD_LIBRARY_PATH=${LLVM_AIE_INSTALL_DIR}/bin:${MLIR_AIE_INSTALL_DIR}/lib:${LD_LIBRARY_PATH}
+  export PEANO_INSTALL_DIR=${LLVM_AIE_INSTALL_DIR}
 fi
 
 # Add `pth` file pointing to MLIR-AIE python package, to support tooling such as Pylance.
