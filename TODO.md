@@ -1,33 +1,27 @@
 # TODO
 
-- [x] Setup benchmark download script
-- [x] List of benchmark documents + queries
-- [x] Run the queries using `jq` or `rsonpath` as a test
-- [x] Document why these queries
-- [ ] Document sequence of kernels with inputs and outputs required
-- [ ] Research/Document which indices the JSONPath automaton runs on and how
-  - Critical to know before implementing kernels and automaton
-  - Document architecture considerations w.r.t performance
-- [x] Setup MLIR-AIE build process
-- [x] Setup MLIR-AIE hello world (string indexer)
-- [x] Setup benchmark for string indexer
+- [ ] Build and commit current JSONPath CPU engine code (`throw NotImplemented` on index call is fine)
+- [ ] Test & measure multiple kernels in one xclbin, call after each other with results passing without memcopy
+- [ ] Research Pison iterator
+  - Is it actually parallel?
+  - Main loop / iterator state
+  - What indices does it rely on?
+  - How to adapt up/down/etc actions to jsonpath?
+  - Leveled index a good idea after all?
 - [ ] Setup JSON processing skeleton
-  - Interface: given a file and a query, return output
-    - What is the output datatype?
   - Main "event loop" for JSONPath automaton
   - Iterate over file in chunks, calling npu to index each chunk
-  - Could implement CPU version of index construction kernels for testing
 - [ ] Setup test framework (FileCheck or other i/o test)
   - Build special small "unit"-test executables that run NPU kernels
   - Tests for CPU side JSONPath query parsing
   - End-to-end test with both CPU and NPU indexer
   - Small JSON file and expected index specified in test
+    - Test entire large array so dataflow splitting etc. is tested
+- [ ] Measure flamegraph of rsonpath
 - [ ] (Optional) Set up fancy developer tooling
   - Set up linters
     - `clangd-format` or/and `clangd-tidy` for C++
     - Python: linter and type checking
     - Shellcheck
   - Add license & header to all source files (script)
-  - How to run tests on GitHub Actions (SSH or simulator?)
-    - Maybe only run CPU side tests on CI
-
+- [ ] Create thesis project on Overleaf, rough outline of chapters (or just the chapters relevant now)

@@ -20,7 +20,7 @@ Datasets are collected in the `datesets` folder. It is important to consider whi
 
 ## Architecture
 
-### Concept (from project proposal)
+### Concept
 
 - Iterate over JSON in chunks (10+ MB)
 - Create indices for current chunk on NPU in parallel (alt. CPU) with kernels:
@@ -43,6 +43,16 @@ Inputs and outputs:
 
 Here `BLOCK_INDEX_SIZE` is the `BLOCK_DATA_SIZE` (i.e. 1024 bytes) divided by 8 (we go from bytes to bits).
 For maximal throughput this is still ok, the output size is still smaller (7 indices total) than input string.
+
+Due to implementation difficulties, an alternative approach utilizing smaller kernels that can be implemented seperately might be better. These allow the string index to not have to be rectified later, and successive kernels can be pipelined on the NPU. The kernels also often only take indices, not the full JSON data, meaning a higher theoretical bandwidth.
+
+- Alternative kernels:
+  0. backslash + quotes (json) on CPU [32+GB/s]
+  1. escape carry index (backslash) on CPU [-]
+  2. quote index (quotes, backslash, escape carry index) [128GB/s]
+  3. quote carry index (quote index) on CPU [-]
+  4. string index (quote index, quote carry index) [128GB/s]
+  5. structural character index (json, string index) on CPU [?GB/s]
 
 ### rsonpath
 
@@ -77,6 +87,10 @@ Ideas on how to accelerate with indices:
   the closing character at the correct depth, and then updating the index and continuing the automaton
   from that point. The (fast) creation of these number arrays is explained in simdjson. Challenge will
   be constructing it fast on NPU. Perhaps return bitsets (known size), and make array on CPU w/ simdjson impl.
+
+Difficulties:
+- Automaton will need to be able to be "paused" in the middle of anything when it hits the end of the chunk,
+  and resume on the next chunk. Might be ugly in code. Coroutines? Exit out when end is hit and stay on last state?
 
 ### JSONSKi
 
