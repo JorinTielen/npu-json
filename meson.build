@@ -8,7 +8,9 @@ project(
 subdir('src/aie')
 
 project_source_files = [
-  'src/npu-json/main.cpp'
+  'src/npu-json/main.cpp',
+  'src/npu-json/engine.cpp',
+  'src/npu-json/npu/indexer.cpp'
 ]
 
 project_dependencies = [

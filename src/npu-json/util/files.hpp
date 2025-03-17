@@ -21,9 +21,4 @@ std::string load_file_content(std::string filename) {
   return buffer.str();
 }
 
-std::string pad_to_multiple(std::string s, size_t k, char fill = ' ') {
-  s.resize((s.size() + k - 1) / k * k, fill);
-  return s;
-}
-
 } // namespace util
