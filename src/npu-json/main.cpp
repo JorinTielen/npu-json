@@ -6,7 +6,6 @@
 
 #include <npu-json/jsonpath/query.hpp>
 #include <npu-json/util/files.hpp>
-#include <npu-json/util/xrt.hpp>
 #include <npu-json/engine.hpp>
 
 int main(int argc, char *argv[]) {

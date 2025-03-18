@@ -9,8 +9,9 @@ from aie.extras.context import mlir_mod_ctx
 from aie.helpers.dialects.ext.scf import _for as range_
 
 
-DATA_CHUNK_SIZE = 10 * 1024 * 1024
+# Must be kept in sync with the CHUNK_SIZE and BLOCK_SIZE in `src/npu-json/engine.hpp`.
 DATA_BLOCK_SIZE = 1024
+DATA_CHUNK_SIZE = 10 * 1024 * DATA_BLOCK_SIZE
 
 INDEX_CHUNK_SIZE = DATA_CHUNK_SIZE // 8
 INDEX_BLOCK_SIZE = DATA_BLOCK_SIZE // 8
@@ -37,10 +38,8 @@ def mlir_aie_design(kernel_obj: str):
         mem_tiles = tiles[1]
         core_tiles = tiles[2:]
 
-        kernel_name = "stringindexer"
-
         kernel = external_func(
-            kernel_name, inputs=[data_block_ty, index_block_ty, np.int32]
+            "stringindexer", inputs=[data_block_ty, index_block_ty, np.int32]
         )
 
         shim_fifos_in = [None] * num_cols
