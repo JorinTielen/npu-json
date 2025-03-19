@@ -3,7 +3,6 @@
 #include <immintrin.h>
 
 #include <npu-json/npu/indexer.hpp>
-#include "indexer.hpp"
 
 namespace npu {
 
@@ -77,7 +76,17 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
 
   bo_out.sync(XCL_BO_SYNC_BO_TO_DEVICE);
   auto buf_out = bo_out.map<uint64_t *>();
-  memcpy(index, buf_out, INDEX_SIZE);
+
+  // String rectification (merged into memcpy)
+  bool last_block_inside_string = false;
+  for (size_t block = 0; block < Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; block++) {
+    auto vectors_in_block = Engine::BLOCK_SIZE / 64;
+    for (size_t i = 0; i < vectors_in_block; i++) {
+      auto idx = block * vectors_in_block + i;
+      index[idx] = last_block_inside_string ? ~buf_out[idx] : buf_out[idx];
+    }
+    last_block_inside_string = index[(block + 1) * vectors_in_block - 1] & 1;
+  }
 }
 
 void StructuralIndexer::construct_structural_character_index(const char *chunk, StructuralIndex &index) {

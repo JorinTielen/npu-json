@@ -12,7 +12,7 @@ class Engine {
 public:
   // Must be kept in sync with the DATA_CHUNK_SIZE AND DATA_BLOCK_SIZE in `src/aie/gen_mlir_design.py`.
   static constexpr size_t BLOCK_SIZE = 1024;
-  static constexpr size_t CHUNK_SIZE = 50 * 1024 * BLOCK_SIZE;
+  static constexpr size_t CHUNK_SIZE = 25 * 1000 * BLOCK_SIZE;
 
   Engine();
   ~Engine();
