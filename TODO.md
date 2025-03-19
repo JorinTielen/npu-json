@@ -1,7 +1,7 @@
 # TODO
 
-- [ ] Build and commit current JSONPath CPU engine code (`throw NotImplemented` on index call is fine)
-- [ ] Test & measure multiple kernels in one xclbin, call after each other with results passing without memcopy
+- [X] Build and commit current JSONPath CPU engine code (`throw NotImplemented` on index call is fine)
+- [X] Test & measure multiple kernels in one xclbin, call after each other with results passing without memcopy
 - [ ] Research Pison iterator
   - Is it actually parallel?
   - Main loop / iterator state
@@ -9,15 +9,29 @@
   - How to adapt up/down/etc actions to jsonpath?
   - Leveled index a good idea after all?
 - [ ] Setup JSON processing skeleton
-  - Main "event loop" for JSONPath automaton
-  - Iterate over file in chunks, calling npu to index each chunk
+  - [X] Main "event loop" for JSONPath automaton
+  - [X] Iterate over file in chunks, calling npu to index each chunk
+  - [X] Correctly pass carry to all the kernels
+  - [X] Implement string rectification
+  - [X] Handle carries between chunks in engine
+  - [X] Build CPU side structural character index (list + iterator interface)
+  - [ ] Build basic JSONPath automaton transitions based on structural characters
+  - [ ] Look into how to detect JSON keys and where the string comparisons come in
+  - [ ] Simple result recorder (wrapper around std::vector) to record results
+  - [ ] Print result count after finishing query execution
+- [ ] Research where `simdjson` validates JSON whitespace outside of strings
+- [ ] Measure flamegraph of rsonpath
 - [ ] Setup test framework (FileCheck or other i/o test)
   - Build special small "unit"-test executables that run NPU kernels
   - Tests for CPU side JSONPath query parsing
   - End-to-end test with both CPU and NPU indexer
   - Small JSON file and expected index specified in test
     - Test entire large array so dataflow splitting etc. is tested
-- [ ] Measure flamegraph of rsonpath
+- [ ] Write a bunch of tests for engine edge cases
+  - Carry between blocks
+  - Carry between chunks
+  - String between blocks
+  - String between chunks
 - [ ] (Optional) Set up fancy developer tooling
   - Set up linters
     - `clangd-format` or/and `clangd-tidy` for C++

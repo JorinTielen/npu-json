@@ -102,3 +102,13 @@ cases with strucutural intervals which are more complex, but achieve similar ski
 The On-Demand simdjson backend for simdjson works on the tape to access data on demand. You could imagine
 a JSONPath query going over the tape. Problem is, tape might require more processing for elements that are
 skipped anyways.
+
+## Implementation findings
+
+- Cannot utilize all tiles due to memory tile DMA output channel limit (when including carry)
+  - 4 channels for input to compute tiles
+  - 4 channels for carry to compute tiles
+  - 1 channel for output to shim tile
+- Cannot utilize multiple rows due to unknown issue w/ carry (chrash at runtime)
+- Overhead of copying input buffer large (~1GB/s lost)
+  - Ping pong buffer should solve this
