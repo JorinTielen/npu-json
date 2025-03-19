@@ -1,12 +1,19 @@
 #include <cstring>
 #include <iostream>
 #include <variant>
+#include <memory>
 
 #include <npu-json/jsonpath/query.hpp>
 #include <npu-json/npu/indexer.hpp>
 #include <npu-json/util/debug.hpp>
 #include <npu-json/engine.hpp>
 #include <npu-json/options.hpp>
+
+Engine::Engine() {
+  indexer = std::make_unique<npu::StructuralIndexer>(XCLBIN_PATH, INSTS_PATH);
+}
+
+Engine::~Engine() {}
 
 void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
   auto chunk = new char[CHUNK_SIZE];
@@ -23,10 +30,10 @@ void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
     }
 
     // Create indices on NPU
-    auto indexer = npu::StructuralIndexer(XCLBIN_PATH, INSTS_PATH);
-    auto structural_index = indexer.construct_structural_index(chunk);
+    auto structural_index = indexer->construct_structural_index(chunk);
 
-    // print_input_and_index(chunk, structural_index->string_index.data(), 1024 * 4);
+    // print_input_and_index(chunk, structural_index->string_index.data(), (1024 * 2) / 64);
+    // print_carry_index(structural_index->escape_carry_index.data());
 
     // Iterate over structural character stream
     while (auto s = structural_index->get_next_structural_character()) {

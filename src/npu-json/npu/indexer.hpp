@@ -25,7 +25,8 @@ class StructuralIndex {
 
   std::vector<StructuralCharacter> structural_characters;
 public:
-  std::bitset<CARRY_INDEX_SIZE> escape_carry_index;
+  // Has to be 32-bit per carry boolean because of NPU data-transfer limitations
+  std::array<uint32_t, CARRY_INDEX_SIZE> escape_carry_index;
   std::array<uint64_t, INDEX_SIZE / 8> string_index;
   std::optional<StructuralCharacter> get_next_structural_character();
 };
@@ -37,14 +38,15 @@ class StructuralIndexer {
 
   xrt::bo bo_instr;
   xrt::bo bo_in;
+  xrt::bo bo_carry;
   xrt::bo bo_out;
   size_t instr_size;
 public:
   StructuralIndexer(std::string xclbin_path, std::string insts_path);
   std::unique_ptr<StructuralIndex> construct_structural_index(const char *chunk);
 private:
-  void construct_escape_carry_index(const char *chunk, std::bitset<CARRY_INDEX_SIZE> &index);
-  void construct_string_index(const char *chunk, uint64_t *index);
+  void construct_escape_carry_index(const char *chunk, std::array<uint32_t, CARRY_INDEX_SIZE> &index);
+  void construct_string_index(const char *chunk, uint64_t *index, uint32_t *escape_carries);
 };
 
 } // namespace npu

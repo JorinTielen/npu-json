@@ -14,10 +14,10 @@ __attribute__((inline)) uint64_t prefix_xor(uint64_t bitmask) {
     return bitmask;
 }
 
-void stringindexer_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict mask_buffer, const int32_t nbytes) {
+void stringindexer_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict index_buffer, uint32_t *__restrict carry, const int32_t n) {
   v64uint8 *__restrict in_ptr = (v64uint8 *)in_buffer;
 
-  static constexpr unsigned int N = 64;
+  static constexpr unsigned int V = 64;
 
   static constexpr const uint64_t ODD_BITS = 0xAAAAAAAAAAAAAAAAULL;
 
@@ -25,10 +25,10 @@ void stringindexer_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict mask_
   const v64uint8 backslash_mask = broadcast_to_v64uint8('\\');
 
   uint64_t prev_in_string = 0;
-  uint64_t prev_is_escaped = 0;
+  uint64_t prev_is_escaped = uint64_t(*carry);
 
-  for (unsigned int i = 0; i < nbytes; i += N)
-      chess_prepare_for_pipelining chess_loop_range(4,) {
+  for (unsigned int i = 0; i < n; i += V)
+      chess_prepare_for_pipelining chess_loop_range(16,) {
     v64uint8 data = *in_ptr++;
 
     // Scan for quote and escape characters in input
@@ -56,14 +56,14 @@ void stringindexer_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict mask_
     prev_in_string = static_cast<int64_t>(string_index) >> 63;
 
     // Store result
-    *mask_buffer++ = string_index;
+    *index_buffer++ = string_index;
   }
 }
 
 extern "C" {
 
-void stringindexer(uint8_t *in_buffer, uint64_t *mask_buffer, int32_t nbytes) {
-  stringindexer_aie(in_buffer, mask_buffer, nbytes);
+void stringindexer(uint8_t *in_buffer, uint64_t *index_buffer, uint32_t *carry, int32_t n) {
+  stringindexer_aie(in_buffer, index_buffer, carry, n);
 }
 
 }
