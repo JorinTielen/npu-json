@@ -3,6 +3,7 @@
 #include <immintrin.h>
 
 #include <npu-json/npu/indexer.hpp>
+#include <npu-json/util/debug.hpp>
 
 namespace npu {
 
@@ -17,6 +18,11 @@ std::optional<StructuralCharacter> StructuralIndex::get_next_structural_characte
     return std::optional<StructuralCharacter>(c);
   }
   return std::optional<StructuralCharacter>();
+}
+
+bool StructuralIndex::ends_in_string() {
+  auto last_vector = string_index[INDEX_SIZE / 8 - 1];
+  return (static_cast<int64_t>(last_vector) >> 63) & 1;
 }
 
 StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_path) {
@@ -45,7 +51,9 @@ StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_
   bo_out.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 }
 
-void StructuralIndexer::construct_escape_carry_index(const char *chunk, std::array<uint32_t, CARRY_INDEX_SIZE> &index) {
+void StructuralIndexer::construct_escape_carry_index(const char *chunk,
+    std::array<uint32_t, CARRY_INDEX_SIZE> &index, bool first_escape_carry) {
+  index[0] = first_escape_carry;
   for (size_t i = 1; i <= Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; i++) {
     auto is_escape_char = chunk[i * Engine::BLOCK_SIZE - 1] == '\\';
     if (!is_escape_char) continue;
@@ -60,7 +68,8 @@ void StructuralIndexer::construct_escape_carry_index(const char *chunk, std::arr
   }
 }
 
-void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *index, uint32_t *escape_carries) {
+void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *index,
+    uint32_t *escape_carries, bool first_string_carry) {
   // Copy input into buffer
   auto buf_in = bo_in.map<uint8_t *>();
   memcpy(buf_in, chunk, Engine::CHUNK_SIZE);
@@ -78,14 +87,15 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
   auto buf_out = bo_out.map<uint64_t *>();
 
   // String rectification (merged into memcpy)
-  bool last_block_inside_string = false;
+  bool last_block_inside_string = first_string_carry;
   for (size_t block = 0; block < Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; block++) {
     auto vectors_in_block = Engine::BLOCK_SIZE / 64;
     for (size_t i = 0; i < vectors_in_block; i++) {
       auto idx = block * vectors_in_block + i;
       index[idx] = last_block_inside_string ? ~buf_out[idx] : buf_out[idx];
     }
-    last_block_inside_string = index[(block + 1) * vectors_in_block - 1] & 1;
+    auto last_vector = index[(block + 1) * vectors_in_block - 1];
+    last_block_inside_string = (static_cast<int64_t>(last_vector) >> 63) & 1;
   }
 }
 
@@ -108,11 +118,12 @@ void StructuralIndexer::construct_structural_character_index(const char *chunk, 
   }
 }
 
-std::unique_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(const char *chunk) {
+std::unique_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(const char *chunk,
+    bool first_escape_carry, bool first_string_carry) {
   auto index = std::make_unique<StructuralIndex>();
 
-  construct_escape_carry_index(chunk, index->escape_carry_index);
-  construct_string_index(chunk, index->string_index.data(), index->escape_carry_index.data());
+  construct_escape_carry_index(chunk, index->escape_carry_index, first_escape_carry);
+  construct_string_index(chunk, index->string_index.data(), index->escape_carry_index.data(), first_string_carry);
   construct_structural_character_index(chunk, *index);
 
   return index;

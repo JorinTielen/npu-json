@@ -18,6 +18,9 @@ Engine::~Engine() {}
 void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
   auto chunk = new char[CHUNK_SIZE];
 
+  bool chunk_carry_escape = false;
+  bool chunk_carry_string = false;
+
   for (size_t chunk_idx = 0; chunk_idx < json.length(); chunk_idx += CHUNK_SIZE) {
     // Prepare buffer for chunk to be passed to NPU
     auto remaining_length = json.length() - chunk_idx;
@@ -30,29 +33,47 @@ void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
     }
 
     // Create indices on NPU
-    auto structural_index = indexer->construct_structural_index(chunk);
+    if (chunk_carry_escape) {
+      std::cout << "! (escape) " << chunk_idx / CHUNK_SIZE << std::endl;
+    }
+    if (chunk_carry_string) {
+      std::cout << "! (string) " << chunk_idx / CHUNK_SIZE << std::endl;
+    }
+    auto structural_index = indexer->construct_structural_index(chunk, chunk_carry_escape, chunk_carry_string);
 
-    // print_input_and_index(chunk, structural_index->string_index.data(), (1024 * 2) / 64);
-    // print_carry_index(structural_index->escape_carry_index.data());
-    // print_structural_character_index(structural_index->structural_characters);
+    std::cout << "Indices:" << std::endl;
+    print_carry_index(structural_index->escape_carry_index.data());
+    std::cout << "------------- carry ----------------" << std::endl;
+    print_input_and_index(chunk, structural_index->string_index.data(), (1024 * 2) / 64 - 1);
+    print_input_and_index(chunk, structural_index->string_index.data(), (1024 * 2) / 64);
+    std::cout << "------------- start ----------------" << std::endl;
+    print_input_and_index(chunk, structural_index->string_index.data(), 0);
+    std::cout << "-------------- end -----------------" << std::endl;
+    print_input_and_index(chunk, structural_index->string_index.data(), CHUNK_SIZE / 64 - 1);
+    std::cout << "------------------------------------" << std::endl << std::endl;
+
+    // Keep track of state between chunks
+    chunk_carry_escape = chunk[CHUNK_SIZE - 1] == '\\';
+    chunk_carry_string = structural_index->ends_in_string();
 
     // Iterate over structural character stream
-    while (auto s = structural_index->get_next_structural_character()) {
-      switch (s.value().c) {
-        case '{':
-          std::cout << "structural: '{'" << std::endl; break;
-        case '}':
-          std::cout << "structural: '}'" << std::endl; break;
-        case '[':
-          std::cout << "structural: '['" << std::endl; break;
-        case ']':
-          std::cout << "structural: ']'" << std::endl; break;
-        case ':':
-          std::cout << "structural: ':'" << std::endl; break;
-        case ',':
-          std::cout << "structural: ','" << std::endl; break;
-      }
-    }
+    // std::cout << "Autmaton:" << std::endl;
+    // while (auto s = structural_index->get_next_structural_character()) {
+    //   switch (s.value().c) {
+    //     case '{':
+    //       std::cout << "structural: '{'" << std::endl; break;
+    //     case '}':
+    //       std::cout << "structural: '}'" << std::endl; break;
+    //     case '[':
+    //       std::cout << "structural: '['" << std::endl; break;
+    //     case ']':
+    //       std::cout << "structural: ']'" << std::endl; break;
+    //     case ':':
+    //       std::cout << "structural: ':'" << std::endl; break;
+    //     case ',':
+    //       std::cout << "structural: ','" << std::endl; break;
+    //   }
+    // }
   }
 
   delete[] chunk;

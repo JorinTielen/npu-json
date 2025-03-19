@@ -11,7 +11,7 @@ from aie.helpers.dialects.ext.scf import _for as range_
 
 # Must be kept in sync with the CHUNK_SIZE and BLOCK_SIZE in `src/npu-json/engine.hpp`.
 DATA_BLOCK_SIZE = 1024
-DATA_CHUNK_SIZE = 25 * 1000 * DATA_BLOCK_SIZE
+DATA_CHUNK_SIZE = 50 * 1000 * DATA_BLOCK_SIZE
 
 INDEX_CHUNK_SIZE = DATA_CHUNK_SIZE // 8
 INDEX_BLOCK_SIZE = DATA_BLOCK_SIZE // 8
