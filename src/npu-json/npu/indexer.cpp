@@ -1,11 +1,22 @@
 #include <cstring>
 #include <stdexcept>
+#include <immintrin.h>
 
 #include <npu-json/npu/indexer.hpp>
+#include "indexer.hpp"
 
 namespace npu {
 
-std::optional<StructuralIndex::StructuralCharacter> StructuralIndex::get_next_structural_character() {
+uint32_t trailing_zeroes(uint64_t mask) {
+  return __builtin_ctzll(mask);
+}
+
+std::optional<StructuralCharacter> StructuralIndex::get_next_structural_character() {
+  if (current_pos < structural_characters.size()) {
+    auto c = structural_characters[current_pos];
+    current_pos++;
+    return std::optional<StructuralCharacter>(c);
+  }
   return std::optional<StructuralCharacter>();
 }
 
@@ -69,11 +80,31 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
   memcpy(index, buf_out, INDEX_SIZE);
 }
 
+void StructuralIndexer::construct_structural_character_index(const char *chunk, StructuralIndex &index) {
+  constexpr unsigned int N = 64;
+
+  const __m512i open_brace_mask = _mm512_set1_epi8('{');
+  const __m512i close_brace_mask = _mm512_set1_epi8('}');
+
+  for (size_t i = 0; i < index.string_index.size(); i++) {
+    __m512i data = _mm512_loadu_si512(reinterpret_cast<const __m512i *>(&chunk[i * N]));
+    __mmask64 open_brace_res = _mm512_cmpeq_epu8_mask(data, open_brace_mask);
+    __mmask64 close_brace_res = _mm512_cmpeq_epu8_mask(data, close_brace_mask);
+    uint64_t structurals_mask = (open_brace_res | close_brace_res) & ~index.string_index[i];
+    while (structurals_mask) {
+      auto structural_idx = (i * N) + trailing_zeroes(structurals_mask);
+      index.structural_characters.push_back({ chunk[structural_idx], structural_idx });
+      structurals_mask = structurals_mask & (structurals_mask - 1);
+    }
+  }
+}
+
 std::unique_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(const char *chunk) {
   auto index = std::make_unique<StructuralIndex>();
 
   construct_escape_carry_index(chunk, index->escape_carry_index);
   construct_string_index(chunk, index->string_index.data(), index->escape_carry_index.data());
+  construct_structural_character_index(chunk, *index);
 
   return index;
 }

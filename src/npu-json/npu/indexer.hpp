@@ -13,21 +13,20 @@ namespace npu {
 constexpr size_t CARRY_INDEX_SIZE = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
 constexpr size_t INDEX_SIZE = Engine::CHUNK_SIZE / 8;
 
+struct StructuralCharacter {
+  char c;
+  size_t pos;
+};
+
 class StructuralIndex {
   size_t current_pos = 0;
   bool chunk_carry_string = false;
   bool chunk_carry_escape = false;
-
-  struct StructuralCharacter {
-    char c;
-    size_t pos;
-  };
-
-  std::vector<StructuralCharacter> structural_characters;
 public:
   // Has to be 32-bit per carry boolean because of NPU data-transfer limitations
   std::array<uint32_t, CARRY_INDEX_SIZE> escape_carry_index;
   std::array<uint64_t, INDEX_SIZE / 8> string_index;
+  std::vector<StructuralCharacter> structural_characters;
   std::optional<StructuralCharacter> get_next_structural_character();
 };
 
@@ -47,6 +46,7 @@ public:
 private:
   void construct_escape_carry_index(const char *chunk, std::array<uint32_t, CARRY_INDEX_SIZE> &index);
   void construct_string_index(const char *chunk, uint64_t *index, uint32_t *escape_carries);
+  void construct_structural_character_index(const char *chunk, StructuralIndex &index);
 };
 
 } // namespace npu

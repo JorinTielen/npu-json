@@ -34,6 +34,7 @@ void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
 
     // print_input_and_index(chunk, structural_index->string_index.data(), (1024 * 2) / 64);
     // print_carry_index(structural_index->escape_carry_index.data());
+    // print_structural_character_index(structural_index->structural_characters);
 
     // Iterate over structural character stream
     while (auto s = structural_index->get_next_structural_character()) {

@@ -2,7 +2,7 @@ project(
   'npu-json',
   ['cpp'],
   version : '0.1.0',
-  default_options : ['warning_level=3']
+  default_options : ['warning_level=3'],
 )
 
 subdir('src/aie')
@@ -18,6 +18,8 @@ project_dependencies = [
 ]
 
 build_args = []
+
+add_project_arguments('-march=native', language: 'cpp')
 
 executable(
   'nj',
