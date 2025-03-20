@@ -3,6 +3,7 @@
 #include <immintrin.h>
 
 #include <npu-json/npu/indexer.hpp>
+#include <npu-json/structural/classifier.hpp>
 #include <npu-json/util/debug.hpp>
 
 namespace npu {
@@ -102,25 +103,31 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
 void StructuralIndexer::construct_structural_character_index(const char *chunk, StructuralIndex &index) {
   constexpr unsigned int N = 64;
 
-  const __m512i open_brace_mask = _mm512_set1_epi8('{');
-  const __m512i close_brace_mask = _mm512_set1_epi8('}');
+  auto classifier = structural::Classifier();
+  classifier.toggle_colons_and_commas();
+
+  auto tail = index.structural_characters.data();
 
   for (size_t i = 0; i < index.string_index.size(); i++) {
-    __m512i data = _mm512_loadu_si512(reinterpret_cast<const __m512i *>(&chunk[i * N]));
-    __mmask64 open_brace_res = _mm512_cmpeq_epu8_mask(data, open_brace_mask);
-    __mmask64 close_brace_res = _mm512_cmpeq_epu8_mask(data, close_brace_mask);
-    uint64_t structurals_mask = (open_brace_res | close_brace_res) & ~index.string_index[i];
-    while (structurals_mask) {
-      auto structural_idx = (i * N) + trailing_zeroes(structurals_mask);
-      index.structural_characters.push_back({ chunk[structural_idx], structural_idx });
-      structurals_mask = structurals_mask & (structurals_mask - 1);
+    uint64_t structural1 = classifier.classify_block(&chunk[i * N]);
+    uint64_t structural2 = classifier.classify_block(&chunk[i * N + N / 2]);
+    uint64_t structural = (structural2 << 32) | (structural1);
+    auto nonquoted_structural = structural & ~index.string_index[i];
+
+    while (nonquoted_structural) {
+      auto structural_idx = (i * N) + trailing_zeroes(nonquoted_structural);
+      *tail++ = { chunk[structural_idx], structural_idx };
+      nonquoted_structural = nonquoted_structural & (nonquoted_structural - 1);
     }
   }
 }
 
-std::unique_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(const char *chunk,
+// TODO: Clean up this ugly global shared pointer. Allocate it once in the engine
+// Perhaps the entire engine/indexer concept has to be reconsidered. (chunk is copied twice)
+auto index = std::make_shared<StructuralIndex>();
+
+std::shared_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(const char *chunk,
     bool first_escape_carry, bool first_string_carry) {
-  auto index = std::make_unique<StructuralIndex>();
 
   construct_escape_carry_index(chunk, index->escape_carry_index, first_escape_carry);
   construct_string_index(chunk, index->string_index.data(), index->escape_carry_index.data(), first_string_carry);

@@ -24,7 +24,8 @@ public:
   // Has to be 32-bit per carry boolean because of NPU data-transfer limitations
   std::array<uint32_t, CARRY_INDEX_SIZE> escape_carry_index;
   std::array<uint64_t, INDEX_SIZE / 8> string_index;
-  std::vector<StructuralCharacter> structural_characters;
+  // TODO: Figure out proper storage size (check simdjson) or just use a generator style interface
+  std::array<StructuralCharacter, Engine::CHUNK_SIZE> structural_characters;
 
   // Methods
   std::optional<StructuralCharacter> get_next_structural_character();
@@ -42,7 +43,7 @@ class StructuralIndexer {
   size_t instr_size;
 public:
   StructuralIndexer(std::string xclbin_path, std::string insts_path);
-  std::unique_ptr<StructuralIndex> construct_structural_index(const char *chunk, bool, bool);
+  std::shared_ptr<StructuralIndex> construct_structural_index(const char *chunk, bool, bool);
 private:
   void construct_escape_carry_index(const char *chunk, std::array<uint32_t, CARRY_INDEX_SIZE> &index, bool);
   void construct_string_index(const char *chunk, uint64_t *index, uint32_t *escape_carries, bool);

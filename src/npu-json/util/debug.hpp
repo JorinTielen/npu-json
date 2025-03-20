@@ -19,6 +19,14 @@ inline void print_input_and_index(const char* input, const uint64_t *index, cons
   std::cout << "index: |" << index_bitset_str << "|" << std::endl;
 }
 
+inline void print_structural_classifier_block(uint32_t structural) {
+  auto structural_bitset = std::bitset<32>(structural);
+  auto structural_bitset_str = structural_bitset.to_string();
+  std::reverse(structural_bitset_str.begin(), structural_bitset_str.end());
+  std::cout << "structural block (32bits):" << std::endl;
+  std::cout << "block: |" << structural_bitset_str << "|" << std::endl;
+}
+
 inline void print_carry_index(const uint32_t *index, const size_t at = 0) {
   auto index_bitset = std::bitset<8>();
   for (size_t i = 0; i < 8; i++) {
