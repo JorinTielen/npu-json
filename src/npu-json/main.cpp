@@ -28,16 +28,25 @@ int main(int argc, char *argv[]) {
 
   auto engine = Engine();
 
+  constexpr size_t WARMUP_ITERS = 3;
+  constexpr size_t BENCH_ITERS = 10;
+
+  for (size_t i = 0; i < WARMUP_ITERS; i++) {
+    engine.run_query_on(*query, data);
+  }
+
   auto start = std::chrono::high_resolution_clock::now();
 
-  engine.run_query_on(*query, data);
+  for (size_t i = 0; i < BENCH_ITERS; i++) {
+    engine.run_query_on(*query, data);
+  }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto runtime = (end - start);
+  auto avg_runtime = (end - start) / BENCH_ITERS;
 
-  auto seconds = std::chrono::duration<double>(runtime).count();
+  auto seconds = std::chrono::duration<double>(avg_runtime).count();
   double gigabytes = (double)data.size() / 1000 / 1000 / 1000;
-  std::cout << "performed query in " << seconds << "s:" << std::endl;
+  std::cout << "performed query on average in " << seconds << "s:" << std::endl;
   std::cout << "size: " << gigabytes << "GB" << std::endl;
   std::cout << "GB/s: " << gigabytes / seconds << std::endl;
 

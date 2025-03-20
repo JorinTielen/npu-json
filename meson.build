@@ -19,7 +19,7 @@ project_dependencies = [
 
 build_args = []
 
-add_project_arguments('-march=native', language: 'cpp')
+add_project_arguments(['-O3', '-march=native'], language: 'cpp')
 
 executable(
   'nj',

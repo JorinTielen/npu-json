@@ -33,12 +33,6 @@ void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
     }
 
     // Create indices on NPU
-    if (chunk_carry_escape) {
-      std::cout << "! (escape) " << chunk_idx / CHUNK_SIZE << std::endl;
-    }
-    if (chunk_carry_string) {
-      std::cout << "! (string) " << chunk_idx / CHUNK_SIZE << std::endl;
-    }
     auto structural_index = indexer->construct_structural_index(chunk, chunk_carry_escape, chunk_carry_string);
 
     std::cout << "Indices:" << std::endl;
