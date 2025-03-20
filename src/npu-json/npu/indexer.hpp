@@ -38,7 +38,6 @@ class StructuralIndexer {
 
   xrt::bo bo_instr;
   xrt::bo bo_in;
-  xrt::bo bo_carry;
   xrt::bo bo_out;
   size_t instr_size;
 public:

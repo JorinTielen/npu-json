@@ -37,10 +37,9 @@ StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_
                      XCL_BO_FLAGS_CACHEABLE, kernel.group_id(1));
 
   // Setup input/output buffers
-  bo_in    = xrt::bo(device, Engine::CHUNK_SIZE, XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(3));
-  bo_out   = xrt::bo(device, INDEX_SIZE, XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(4));
-  bo_carry = xrt::bo(device, CARRY_INDEX_SIZE * sizeof(uint32_t),
-                     XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(5));
+  size_t in_buffer_size = Engine::CHUNK_SIZE + 4 * CARRY_INDEX_SIZE;
+  bo_in  = xrt::bo(device, in_buffer_size, XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(3));
+  bo_out = xrt::bo(device, INDEX_SIZE, XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(4));
 
   // Copy instructions to buffer
   memcpy(bo_instr.map<void *>(), instr_v.data(), instr_v.size() * sizeof(uint32_t));
@@ -72,15 +71,16 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
     uint32_t *escape_carries, bool first_string_carry) {
   // Copy input into buffer
   auto buf_in = bo_in.map<uint8_t *>();
-  memcpy(buf_in, chunk, Engine::CHUNK_SIZE);
+  auto blocks_in_chunk_count = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
+  for (size_t block = 0; block < blocks_in_chunk_count; block++) {
+    // Each block has 4 extra bytes
+    auto idx = block * (Engine::BLOCK_SIZE + 4);
+    memcpy(&buf_in[idx], &chunk[block * Engine::BLOCK_SIZE], Engine::BLOCK_SIZE);
+    buf_in[idx + Engine::BLOCK_SIZE] = escape_carries[block];
+  }
   bo_in.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-  // Copy carry index into buffer
-  auto buf_carry = bo_carry.map<uint32_t *>();
-  memcpy(buf_carry, escape_carries, CARRY_INDEX_SIZE * sizeof(uint32_t));
-  bo_carry.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-  auto run = kernel(3, bo_instr, instr_size, bo_in, bo_out, bo_carry);
+  auto run = kernel(3, bo_instr, instr_size, bo_in, bo_out);
   run.wait();
 
   bo_out.sync(XCL_BO_SYNC_BO_TO_DEVICE);
