@@ -9,25 +9,7 @@
 #include <npu-json/engine.hpp>
 #include <npu-json/options.hpp>
 
-int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    std::cout << "Usage: ./nj [json]" << std::endl;
-    return -1;
-  }
-
-  // Read in JSON file
-  std::string data = util::load_file_content(argv[1]);
-
-  // TODO: Parse query from string
-  auto query = new jsonpath::Query {
-    {
-      jsonpath::segments::Name { "user" },
-      jsonpath::segments::Name { "lang" }
-    }
-  };
-
-  auto engine = Engine();
-
+void run_bench(std::string data, Engine &engine, jsonpath::Query *query) {
   constexpr size_t WARMUP_ITERS = 3;
   constexpr size_t BENCH_ITERS = 10;
 
@@ -49,6 +31,41 @@ int main(int argc, char *argv[]) {
   std::cout << "performed query on average in " << seconds << "s:" << std::endl;
   std::cout << "size: " << gigabytes << "GB" << std::endl;
   std::cout << "GB/s: " << gigabytes / seconds << std::endl;
+}
+
+void run_single(std::string data, Engine &engine, jsonpath::Query *query) {
+  engine.run_query_on(*query, data);
+}
+
+int main(int argc, char *argv[]) {
+  if (argc < 2) {
+    std::cout << "Usage: ./nj [json] [--bench]" << std::endl;
+    return -1;
+  }
+
+  bool bench = false;
+  if (argc == 3 && std::string(argv[2]) == "--bench") {
+    bench = true;
+  }
+
+  // Read in JSON file
+  std::string data = util::load_file_content(argv[1]);
+
+  // TODO: Parse query from string
+  auto query = new jsonpath::Query {
+    {
+      jsonpath::segments::Name { "user" },
+      jsonpath::segments::Name { "lang" }
+    }
+  };
+
+  auto engine = Engine();
+
+  if (bench) {
+    run_bench(data, engine, query);
+  } else {
+    run_single(data, engine, query);
+  }
 
   delete query;
   return 0;
