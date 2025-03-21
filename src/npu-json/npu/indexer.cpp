@@ -120,7 +120,6 @@ void StructuralIndexer::construct_structural_character_index(const char *chunk, 
   classifier.toggle_colons_and_commas();
 
   auto tail = index.structural_characters.data();
-  size_t structurals_count = 0;
 
   for (size_t i = 0; i < index.string_index.size(); i++) {
     uint64_t structural1 = classifier.classify_block(&chunk[i * N]);
@@ -131,7 +130,7 @@ void StructuralIndexer::construct_structural_character_index(const char *chunk, 
     while (nonquoted_structural) {
       auto structural_idx = (i * N) + trailing_zeroes(nonquoted_structural);
       *tail++ = { chunk[structural_idx], structural_idx };
-      structurals_count++;
+      index.structurals_count++;
       nonquoted_structural = nonquoted_structural & (nonquoted_structural - 1);
     }
   }
