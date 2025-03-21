@@ -14,6 +14,8 @@ inline void print_input_and_index(const char* input, const uint64_t *index, cons
   std::reverse(index_bitset_str.begin(), index_bitset_str.end());
   auto input_str = std::string(input + at * 64, 64);
   std::replace(input_str.begin(), input_str.end(), '\n', ' ');
+  std::replace(input_str.begin(), input_str.end(), '\r', ' ');
+  std::replace(input_str.begin(), input_str.end(), '\t', ' ');
   std::cout << "data (64 bytes at position " << at << "):" << std::endl;
   std::cout << "input: |" << input_str << "|" << std::endl;
   std::cout << "index: |" << index_bitset_str << "|" << std::endl;

@@ -94,14 +94,14 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
 
   // String rectification (merged into memcpy)
   bool last_block_inside_string = first_string_carry;
-  for (size_t block = 0; block < Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; block++) {
+  for (size_t block = 0; block < blocks_in_chunk_count; block++) {
     auto vectors_in_block = Engine::BLOCK_SIZE / 64;
     for (size_t i = 0; i < vectors_in_block; i++) {
       auto idx = block * vectors_in_block + i;
       index[idx] = last_block_inside_string ? ~buf_out[idx] : buf_out[idx];
     }
     auto last_vector = index[(block + 1) * vectors_in_block - 1];
-    last_block_inside_string = (static_cast<int64_t>(last_vector) >> 63) & 1;
+    last_block_inside_string = static_cast<int64_t>(last_vector) >> 63;
   }
 }
 
