@@ -21,6 +21,8 @@ void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
   bool chunk_carry_escape = false;
   bool chunk_carry_string = false;
 
+  size_t chunk_count = 0;
+
   for (size_t chunk_idx = 0; chunk_idx < json.length(); chunk_idx += CHUNK_SIZE) {
     // Prepare buffer for chunk to be passed to NPU
     auto remaining_length = json.length() - chunk_idx;
@@ -32,14 +34,22 @@ void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
       memset(chunk + n, ' ', CHUNK_SIZE - n);
     }
 
+    std::cout << "Processing chunk " << chunk_count << ":" << std::endl << std::endl;
+
     // Create indices on NPU
+    if (chunk_carry_escape) {
+      std::cout << "! (escape) " << chunk_idx / CHUNK_SIZE << std::endl;
+    }
+    if (chunk_carry_string) {
+      std::cout << "! (string) " << chunk_idx / CHUNK_SIZE << std::endl;
+    }
     auto structural_index = indexer->construct_structural_index(chunk, chunk_carry_escape, chunk_carry_string);
 
     std::cout << "Indices:" << std::endl;
     print_carry_index(structural_index->escape_carry_index.data());
-    std::cout << "------------- carry ----------------" << std::endl;
-    print_input_and_index(chunk, structural_index->string_index.data(), (1024 * 2) / 64 - 1);
-    print_input_and_index(chunk, structural_index->string_index.data(), (1024 * 2) / 64);
+    // std::cout << "------------- carry ----------------" << std::endl;
+    // print_input_and_index(chunk, structural_index->string_index.data(), (1024 * 2) / 64 - 1);
+    // print_input_and_index(chunk, structural_index->string_index.data(), (1024 * 2) / 64);
     std::cout << "------------- start ----------------" << std::endl;
     print_input_and_index(chunk, structural_index->string_index.data(), 0);
     std::cout << "-------------- end -----------------" << std::endl;
@@ -68,6 +78,7 @@ void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
     //       std::cout << "structural: ','" << std::endl; break;
     //   }
     // }
+    chunk_count++;
   }
 
   delete[] chunk;
