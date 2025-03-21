@@ -26,11 +26,13 @@ public:
   std::array<uint64_t, INDEX_SIZE / 8> string_index;
   // TODO: Figure out proper storage size (check simdjson) or just use a generator style interface
   std::array<StructuralCharacter, Engine::CHUNK_SIZE> structural_characters;
+  size_t structurals_count = 0;
 
   // Methods
   std::optional<StructuralCharacter> get_next_structural_character();
   bool ends_in_string();
   bool ends_with_escape();
+  void reset();
 };
 
 // Class used to build the indices required to provide a stream of structural

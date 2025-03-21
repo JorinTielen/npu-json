@@ -13,7 +13,7 @@ uint32_t trailing_zeroes(uint64_t mask) {
 }
 
 std::optional<StructuralCharacter> StructuralIndex::get_next_structural_character() {
-  if (current_pos < structural_characters.size()) {
+  if (current_pos < structurals_count) {
     auto c = structural_characters[current_pos];
     current_pos++;
     return std::optional<StructuralCharacter>(c);
@@ -28,6 +28,11 @@ bool StructuralIndex::ends_in_string() {
 
 bool StructuralIndex::ends_with_escape() {
   return escape_carry_index[CARRY_INDEX_SIZE - 1];
+}
+
+void StructuralIndex::reset() {
+  current_pos = 0;
+  structurals_count = 0;
 }
 
 StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_path) {
@@ -60,7 +65,10 @@ void StructuralIndexer::construct_escape_carry_index(const char *chunk,
   index[0] = first_escape_carry;
   for (size_t i = 1; i < Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; i++) {
     auto is_escape_char = chunk[i * Engine::BLOCK_SIZE - 1] == '\\';
-    if (!is_escape_char) continue;
+    if (!is_escape_char) {
+      index[i] = false;
+      continue;
+    }
 
     auto escape_char_count = 1;
     while (chunk[(i * Engine::BLOCK_SIZE - 1) - escape_char_count] == '\\') {
@@ -112,6 +120,7 @@ void StructuralIndexer::construct_structural_character_index(const char *chunk, 
   classifier.toggle_colons_and_commas();
 
   auto tail = index.structural_characters.data();
+  size_t structurals_count = 0;
 
   for (size_t i = 0; i < index.string_index.size(); i++) {
     uint64_t structural1 = classifier.classify_block(&chunk[i * N]);
@@ -122,6 +131,7 @@ void StructuralIndexer::construct_structural_character_index(const char *chunk, 
     while (nonquoted_structural) {
       auto structural_idx = (i * N) + trailing_zeroes(nonquoted_structural);
       *tail++ = { chunk[structural_idx], structural_idx };
+      structurals_count++;
       nonquoted_structural = nonquoted_structural & (nonquoted_structural - 1);
     }
   }
@@ -133,6 +143,7 @@ auto index = std::make_shared<StructuralIndex>();
 
 std::shared_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(const char *chunk,
     bool first_escape_carry, bool first_string_carry) {
+  index->reset();
 
   construct_escape_carry_index(chunk, index->escape_carry_index, first_escape_carry);
   construct_string_index(chunk, index->string_index.data(), index->escape_carry_index.data(), first_string_carry);
