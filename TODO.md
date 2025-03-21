@@ -16,8 +16,7 @@
   - [X] Handle carries between chunks in engine
   - [X] Build CPU side structural character index (list + iterator interface)
   - [X] Implement vectorized classification for all structural character types
-    - Still not very fast due to std::vector, rewrite it to use generator pattern
-    - Cost can be pipelined away but it is too significant in the current design
+    - [X] Still not very fast due to std::vector, rewrite it to use generator pattern
   - [ ] Build basic JSONPath automaton transitions based on structural characters
   - [ ] Look into how to detect JSON keys and where the string comparisons come in
   - [ ] Simple result recorder (wrapper around std::vector) to record results

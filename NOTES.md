@@ -105,10 +105,17 @@ skipped anyways.
 
 ## Implementation findings
 
+Fixed these by merging input buffer:
+
 - Cannot utilize all tiles due to memory tile DMA output channel limit (when including carry)
   - 4 channels for input to compute tiles
   - 4 channels for carry to compute tiles
   - 1 channel for output to shim tile
 - Cannot utilize multiple rows due to unknown issue w/ carry (chrash at runtime)
-- Overhead of copying input buffer large (~1GB/s lost)
-  - Ping pong buffer should solve this
+
+Still open:
+
+- Overhead of copying input buffer large (~1GB/s+ lost)
+  - Ping pong buffer cannot really solve it, as buffer is owned by XRT
+  - Either figure out how to pass pointer to XRT instead of memcopy and do ping pong
+  - Or copy 2 indices (quote and backslash) instead (pros: less data too)
