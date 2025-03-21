@@ -57,7 +57,7 @@ void Engine::run_query_on(jsonpath::Query &query, std::string &json) {
     std::cout << "------------------------------------" << std::endl << std::endl;
 
     // Keep track of state between chunks
-    chunk_carry_escape = chunk[CHUNK_SIZE - 1] == '\\';
+    chunk_carry_escape = structural_index->ends_with_escape();
     chunk_carry_string = structural_index->ends_in_string();
 
     // Iterate over structural character stream

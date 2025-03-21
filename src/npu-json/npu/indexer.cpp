@@ -26,6 +26,10 @@ bool StructuralIndex::ends_in_string() {
   return (static_cast<int64_t>(last_vector) >> 63) & 1;
 }
 
+bool StructuralIndex::ends_with_escape() {
+  return escape_carry_index[CARRY_INDEX_SIZE - 1];
+}
+
 StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_path) {
   // Initialize NPU
   auto [device, k] = util::init_npu(xclbin_path);
@@ -54,7 +58,7 @@ StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_
 void StructuralIndexer::construct_escape_carry_index(const char *chunk,
     std::array<uint32_t, CARRY_INDEX_SIZE> &index, bool first_escape_carry) {
   index[0] = first_escape_carry;
-  for (size_t i = 1; i <= Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; i++) {
+  for (size_t i = 1; i < Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; i++) {
     auto is_escape_char = chunk[i * Engine::BLOCK_SIZE - 1] == '\\';
     if (!is_escape_char) continue;
 
@@ -77,7 +81,8 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
     // Each block has 4 extra bytes
     auto idx = block * (Engine::BLOCK_SIZE + 4);
     memcpy(&buf_in[idx], &chunk[block * Engine::BLOCK_SIZE], Engine::BLOCK_SIZE);
-    buf_in[idx + Engine::BLOCK_SIZE] = escape_carries[block];
+    uint32_t *buf_in_carry = (uint32_t *)&buf_in[idx + Engine::BLOCK_SIZE];
+    *buf_in_carry = escape_carries[block];
   }
   bo_in.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 

@@ -30,6 +30,7 @@ public:
   // Methods
   std::optional<StructuralCharacter> get_next_structural_character();
   bool ends_in_string();
+  bool ends_with_escape();
 };
 
 // Class used to build the indices required to provide a stream of structural
