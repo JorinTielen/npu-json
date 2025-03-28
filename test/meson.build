@@ -1,6 +1,7 @@
 
 test_files = [
   'unit/escape_carry_index_test.cpp',
+  'unit/structural_classifier_test.cpp',
 ]
 
 test_exe = executable(
