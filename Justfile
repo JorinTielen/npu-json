@@ -24,5 +24,13 @@ build:
   meson compile -C build
 
 # run nj on a specic JSON file
-run json:
-  ./build/nj {{json}}
+run json *args:
+  ./build/nj datasets/{{json}}.json {{args}}
+
+# run unit tests
+test-unit:
+  ninja -C build test
+
+# run npu tests
+test-npu:
+  ./build/test/npu_tests build/src/aie/json.xclbin build/src/aie/json-insts.txt
