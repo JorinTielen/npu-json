@@ -1,0 +1,4 @@
+*
+!.gitignore
+!xrt/
+!catch2.wrap

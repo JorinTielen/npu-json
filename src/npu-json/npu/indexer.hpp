@@ -44,8 +44,10 @@ class StructuralIndexer {
   xrt::bo bo_in;
   xrt::bo bo_out;
   size_t instr_size;
+
+  bool npu_initialized = false;
 public:
-  StructuralIndexer(std::string xclbin_path, std::string insts_path);
+  StructuralIndexer(std::string xclbin_path, std::string insts_path, bool initialize_npu);
   std::shared_ptr<StructuralIndex> construct_structural_index(const char *chunk, bool, bool);
 private:
   void construct_escape_carry_index(const char *chunk, std::array<uint32_t, CARRY_INDEX_SIZE> &index, bool);

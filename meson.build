@@ -8,7 +8,6 @@ project(
 subdir('src/aie')
 
 project_source_files = [
-  'src/npu-json/main.cpp',
   'src/npu-json/engine.cpp',
   'src/npu-json/npu/indexer.cpp',
   'src/npu-json/structural/classifier.cpp',
@@ -18,14 +17,30 @@ project_dependencies = [
   dependency('xrt'),
 ]
 
+project_include_directories = [
+  'src'
+]
+
 build_args = []
 
 add_project_arguments(['-O3', '-march=native'], language: 'cpp')
 
+npu_json_lib = shared_library(
+  'npu_json_lib',
+  project_source_files,
+  include_directories : project_include_directories,
+  dependencies : project_dependencies,
+  install : true
+)
+
 executable(
   'nj',
-  project_source_files,
-  include_directories : 'src',
+  ['src/npu-json/main.cpp'] + project_source_files,
+  include_directories : project_include_directories,
   dependencies : project_dependencies,
   c_args : build_args,
 )
+
+catch2_project = subproject('catch2', required: true)
+catch2_dep= catch2_project.get_variable('catch2_with_main_dep')
+subdir('test')

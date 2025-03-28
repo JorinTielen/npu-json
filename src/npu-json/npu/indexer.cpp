@@ -35,7 +35,11 @@ void StructuralIndex::reset() {
   structurals_count = 0;
 }
 
-StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_path) {
+StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_path,
+    bool initialize_npu = true) {
+  // If the flag is not passed we skip setting up the NPU. Used in unit tests.
+  if (!initialize_npu) return;
+
   // Initialize NPU
   auto [device, k] = util::init_npu(xclbin_path);
   kernel = k;
@@ -58,6 +62,8 @@ StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_
   // Zero out output buffer
   memset(bo_out.map<uint8_t *>(), 0, INDEX_SIZE);
   bo_out.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+  npu_initialized = true;
 }
 
 void StructuralIndexer::construct_escape_carry_index(const char *chunk,
@@ -82,6 +88,9 @@ void StructuralIndexer::construct_escape_carry_index(const char *chunk,
 
 void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *index,
     uint32_t *escape_carries, bool first_string_carry) {
+  // If the NPU is not initialized, we will not call a kernel here.
+  if (!npu_initialized) throw std::logic_error("NPU was not initialized");
+
   // Copy input into buffer
   auto buf_in = bo_in.map<uint8_t *>();
   auto blocks_in_chunk_count = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
@@ -145,7 +154,9 @@ std::shared_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(c
   index->reset();
 
   construct_escape_carry_index(chunk, index->escape_carry_index, first_escape_carry);
-  construct_string_index(chunk, index->string_index.data(), index->escape_carry_index.data(), first_string_carry);
+  if (npu_initialized) {
+    construct_string_index(chunk, index->string_index.data(), index->escape_carry_index.data(), first_string_carry);
+  }
   construct_structural_character_index(chunk, *index);
 
   return index;

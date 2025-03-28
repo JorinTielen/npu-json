@@ -10,7 +10,7 @@
 #include <npu-json/options.hpp>
 
 Engine::Engine() {
-  indexer = std::make_unique<npu::StructuralIndexer>(XCLBIN_PATH, INSTS_PATH);
+  indexer = std::make_unique<npu::StructuralIndexer>(XCLBIN_PATH, INSTS_PATH, true);
 }
 
 Engine::~Engine() {}
