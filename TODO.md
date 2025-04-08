@@ -18,6 +18,9 @@
   - [X] Implement vectorized classification for all structural character types
     - [X] Still not very fast due to std::vector, rewrite it to use generator pattern
   - [ ] Build basic JSONPath automaton transitions based on structural characters
+    - Fix bug with fallback (see TODO in function)
+    - Fix bug with key comp length (if ends with searched key it matches)
+    - Fix bug happening on bestbuy
   - [ ] Look into how to detect JSON keys and where the string comparisons come in
   - [ ] Simple result recorder (wrapper around std::vector) to record results
   - [ ] Print result count after finishing query execution
