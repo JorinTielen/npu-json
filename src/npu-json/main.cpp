@@ -9,18 +9,18 @@
 #include <npu-json/engine.hpp>
 #include <npu-json/options.hpp>
 
-void run_bench(std::string data, Engine &engine, jsonpath::Query *query) {
+void run_bench(std::string data, Engine &engine) {
   constexpr size_t WARMUP_ITERS = 3;
   constexpr size_t BENCH_ITERS = 10;
 
   for (size_t i = 0; i < WARMUP_ITERS; i++) {
-    engine.run_query_on(*query, data);
+    engine.run_query_on(data);
   }
 
   auto start = std::chrono::high_resolution_clock::now();
 
   for (size_t i = 0; i < BENCH_ITERS; i++) {
-    engine.run_query_on(*query, data);
+    engine.run_query_on(data);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -33,8 +33,9 @@ void run_bench(std::string data, Engine &engine, jsonpath::Query *query) {
   std::cout << "GB/s: " << gigabytes / seconds << std::endl;
 }
 
-void run_single(std::string data, Engine &engine, jsonpath::Query *query) {
-  engine.run_query_on(*query, data);
+void run_single(std::string data, Engine &engine) {
+  auto results_set = engine.run_query_on(data);
+  std::cout << "Found " << results_set->get_result_count() << " results!" << std::endl;
 }
 
 int main(int argc, char *argv[]) {
@@ -54,17 +55,19 @@ int main(int argc, char *argv[]) {
   // TODO: Parse query from string
   auto query = new jsonpath::Query {
     {
+      jsonpath::segments::Name { "statuses" },
+      jsonpath::segments::Wildcard {},
       jsonpath::segments::Name { "user" },
       jsonpath::segments::Name { "lang" }
     }
   };
 
-  auto engine = Engine();
+  auto engine = Engine(*query);
 
   if (bench) {
-    run_bench(data, engine, query);
+    run_bench(data, engine);
   } else {
-    run_single(data, engine, query);
+    run_single(data, engine);
   }
 
   delete query;

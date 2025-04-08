@@ -40,7 +40,7 @@ inline void print_carry_index(const uint32_t *index, const size_t at = 0) {
   std::cout << "carry: |" << index_bitset_str << "|" << std::endl;
 }
 
-inline void print_structural_character_index(const std::vector<npu::StructuralCharacter> &index) {
+inline void print_structural_character_index(const std::vector<StructuralCharacter> &index) {
   for (auto c : index) {
     std::cout << "{ char: '" << c.c << "', pos: " << c.pos << " }" << std::endl;
   }

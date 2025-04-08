@@ -13,11 +13,6 @@ namespace npu {
 constexpr size_t CARRY_INDEX_SIZE = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
 constexpr size_t INDEX_SIZE = Engine::CHUNK_SIZE / 8;
 
-struct StructuralCharacter {
-  char c;
-  size_t pos;
-};
-
 class StructuralIndex {
   size_t current_pos = 0;
 public:
