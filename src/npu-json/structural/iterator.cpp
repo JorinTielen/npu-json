@@ -17,7 +17,11 @@ std::optional<StructuralCharacter> Iterator::get_next_structural_character() {
 
   // Return next structural character in the current chunk if there is one.
   auto possible_structural = structural_index->get_next_structural_character();
-  if (possible_structural.has_value()) return possible_structural;
+  if (possible_structural.has_value()) {
+    // TODO: Do this somewhere better
+    possible_structural.value().pos += chunk_idx - Engine::CHUNK_SIZE;
+    return possible_structural;
+  }
 
   // Reached the end of the input, no more structurals to return.
   if (chunk_idx >= json.length()) return std::optional<StructuralCharacter>();
