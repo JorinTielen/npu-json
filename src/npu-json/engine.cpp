@@ -129,34 +129,44 @@ bool check_key_match(std::string &json, size_t colon_position, std::string &sear
 void Engine::handle_find_key(StructuralCharacter structural_character, std::string &json,
                              std::string &search_key, structural::Iterator &iterator) {
   size_t search_depth = current_depth;
-  switch (structural_character.c) {
-    case ':': {
-      // Only check keys at the current depth
-      if (current_depth == search_depth) {
-        // Match the key before the colon
-        auto matched = check_key_match(json, structural_character.pos, search_key);
-        if (matched) {
-          possible_result_start_position = structural_character.pos + 1;
-          advance();
+
+  auto structural_character_opt = std::optional<StructuralCharacter>(structural_character);
+
+  while (structural_character_opt.has_value()) {
+    switch (structural_character.c) {
+      case ':': {
+        // Only check keys at the current depth
+        if (current_depth == search_depth) {
+          // Match the key before the colon
+          auto matched = check_key_match(json, structural_character.pos, search_key);
+          if (matched) {
+            possible_result_start_position = structural_character.pos + 1;
+            advance();
+          }
         }
+        break;
+      }
+      case ',':
+        // Last key did not match, we are still in the FindKey state, so skip the comma.
+        break;
+      case '{':
+      case '[':
+        current_depth++;
+        break;
+      case '}':
+      case ']': {
+        current_depth--;
+        if (current_depth == search_depth - 1) {
+          // We matched no keys and reached the end of the object, so we fall back.
+          exit(1);
+          fallback(iterator);
+          return;
+        }
+        break;
       }
     }
-    case ',':
-      // Last key did not match, we are still in the FindKey state, so skip the comma.
-      break;
-    case '{':
-    case '[':
-      current_depth++;
-      break;
-    case '}':
-    case ']': {
-      current_depth--;
-      if (current_depth == search_depth) {
-        // We matched no keys and reached the end of the object, so we fall back.
-        fallback(iterator, false);
-        return;
-      }
-    }
+
+    structural_character_opt = iterator.get_next_structural_character();
   }
 }
 
