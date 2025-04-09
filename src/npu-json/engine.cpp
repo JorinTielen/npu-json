@@ -29,6 +29,8 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
   // $.statuses[*].user.lang
   // OPEN_OBJECT, FIND_KEY "statuses", OPEN_OBJECT, WILDCARD, FIND_KEY "user", OPEN_OBJECT, FIND_KEY "lang", RECORD_RESULT
 
+  // print_byte_code(byte_code->instructions);
+
   while (auto structural_character = structural_iterator->get_next_structural_character()) {
     auto current_instruction = byte_code->instructions[current_instruction_pointer];
 
@@ -182,8 +184,8 @@ void Engine::handle_wildcard(StructuralCharacter structural_character, structura
 
 void Engine::handle_record_result(StructuralCharacter structural_character, std::string &json,
                                   structural::Iterator &iterator, ResultSet &result_set) {
-  std::cout << "record result: " << possible_result_start_position << ", " << structural_character.pos << std::endl;
-  std::cout << std::string(json, possible_result_start_position, structural_character.pos - possible_result_start_position) << std::endl;
+  // std::cout << "record result: " << possible_result_start_position << ", " << structural_character.pos << std::endl;
+  // std::cout << std::string(json, possible_result_start_position, structural_character.pos - possible_result_start_position) << std::endl;
   result_set.record_result(possible_result_start_position, structural_character.pos);
 
   if ((structural_character.c == '}' && current_structure_type == StructureType::Object) ||
@@ -205,36 +207,29 @@ void Engine::advance() {
 // Unwinds engine bytecode execution towards the nearest Wildcard instruction
 // if there is one, tail-skipping JSON structures as depth is reduced.
 void Engine::fallback(structural::Iterator &iterator, bool skip_first) {
-  std::cout << "fallback" << std::endl;
-  std::cout << skip_first << std::endl;
-  std::cout << stack.size() << std::endl;
-  std::cout << current_depth << std::endl;
-  std::cout << current_instruction_pointer << std::endl;
   auto skipped_first = false;
-  // TODO: While should be other way around -> pop stack until wildcard reached -> that gives depth & ip we want
-  while (current_instruction_pointer > 0) {
-    if (!stack.empty()) {
-      auto frame = stack.top();
-      restore_state_from_stack(frame);
-      if (skip_first || skipped_first) {
-        skip_current_structure(iterator, frame.structure_type);
-        skipped_first = true;
-      }
-      stack.pop();
+
+  while (!stack.empty()) {
+    auto frame = stack.top();
+
+    auto frame_instruction = byte_code->instructions[frame.instruction_pointer];
+    if (frame_instruction.opcode == jsonpath::Opcode::WildCard) break;
+
+    restore_state_from_stack(frame);
+
+    stack.pop();
+
+    if (skip_first || skipped_first) {
+      skip_current_structure(iterator, frame.structure_type);
+      skipped_first = true;
     }
-
-    current_depth--;
-    current_instruction_pointer--;
-
-    auto current_instr = byte_code->instructions[current_instruction_pointer];
-    if (current_instr.opcode == jsonpath::Opcode::WildCard) break;
   }
-
-  current_instruction_pointer++;
 }
 
 void Engine::restore_state_from_stack(StackFrame &frame) {
+  current_depth = frame.depth;
   current_structure_type = frame.structure_type;
+  current_instruction_pointer = frame.instruction_pointer;
 }
 
 void Engine::skip_current_structure(structural::Iterator &iterator, StructureType structure_type) {

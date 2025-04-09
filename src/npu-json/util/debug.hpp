@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 
+#include <npu-json/jsonpath/byte-code.hpp>
 #include <npu-json/npu/indexer.hpp>
 
 inline void print_input_and_index(const char* input, const uint64_t *index, const size_t at = 0) {
@@ -43,5 +44,29 @@ inline void print_carry_index(const uint32_t *index, const size_t at = 0) {
 inline void print_structural_character_index(const std::vector<StructuralCharacter> &index) {
   for (auto c : index) {
     std::cout << "{ char: '" << c.c << "', pos: " << c.pos << " }" << std::endl;
+  }
+}
+
+inline void print_byte_code(const std::vector<jsonpath::Instruction> &instructions) {
+  size_t ip = 0;
+  for (auto instruction : instructions) {
+    switch (instruction.opcode) {
+      case jsonpath::Opcode::FindIndex:
+        std::cout << ip << ": " << "FindIndex" << std::endl; break;
+      case jsonpath::Opcode::FindKey:
+        std::cout << ip << ": " << "FindKey" << std::endl; break;
+      case jsonpath::Opcode::OpenArray:
+        std::cout << ip << ": " << "OpenArray" << std::endl; break;
+      case jsonpath::Opcode::OpenObject:
+        std::cout << ip << ": " << "OpenObject" << std::endl; break;
+      case jsonpath::Opcode::WildCard:
+        std::cout << ip << ": " << "WildCard" << std::endl; break;
+      case jsonpath::Opcode::RecordResult:
+        std::cout << ip << ": " << "RecordResult" << std::endl; break;
+      default:
+        __builtin_unreachable();
+    }
+
+    ip++;
   }
 }
