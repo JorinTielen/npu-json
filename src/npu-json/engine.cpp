@@ -133,15 +133,21 @@ void Engine::handle_find_key(StructuralCharacter structural_character, std::stri
   auto structural_character_opt = std::optional<StructuralCharacter>(structural_character);
 
   while (structural_character_opt.has_value()) {
-    switch (structural_character.c) {
+    switch (structural_character_opt.value().c) {
       case ':': {
         // Only check keys at the current depth
         if (current_depth == search_depth) {
           // Match the key before the colon
-          auto matched = check_key_match(json, structural_character.pos, search_key);
+          // auto around_colon = std::string(json.c_str() + structural_character_opt.value().pos - 10, 20);
+          // std::replace(around_colon.begin(), around_colon.end(), '\n', ' ');
+          // std::replace(around_colon.begin(), around_colon.end(), '\r', ' ');
+          // std::replace(around_colon.begin(), around_colon.end(), '\t', ' ');
+          // std::cout << "check_key_match: " << search_key << " -> " << "|" << around_colon << "|" << std::endl;
+          auto matched = check_key_match(json, structural_character_opt.value().pos, search_key);
           if (matched) {
-            possible_result_start_position = structural_character.pos + 1;
+            possible_result_start_position = structural_character_opt.value().pos + 1;
             advance();
+            return;
           }
         }
         break;
@@ -158,8 +164,7 @@ void Engine::handle_find_key(StructuralCharacter structural_character, std::stri
         current_depth--;
         if (current_depth == search_depth - 1) {
           // We matched no keys and reached the end of the object, so we fall back.
-          exit(1);
-          fallback(iterator);
+          fallback(iterator, false);
           return;
         }
         break;
@@ -183,7 +188,9 @@ void Engine::handle_wildcard(StructuralCharacter structural_character, structura
     advance();
   } else if (structural_character.c == '}' || structural_character.c == ']') {
     // End of wildcard, fall back to a previous one if there is one.
-    fallback(iterator);
+    stack.pop();
+    auto frame = stack.top();
+    restore_state_from_stack(frame);
   } else if (structural_character.c == ',') {
     // Skip the comma on wildcards
     return;
