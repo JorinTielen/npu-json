@@ -17,26 +17,24 @@
   - [X] Build CPU side structural character index (list + iterator interface)
   - [X] Implement vectorized classification for all structural character types
     - [X] Still not very fast due to std::vector, rewrite it to use generator pattern
-  - [ ] Build basic JSONPath automaton transitions based on structural characters
-    - Fix bug with fallback (see TODO in function)
-    - Fix bug with key comp length (if ends with searched key it matches)
-    - Fix bug happening on bestbuy
-  - [ ] Look into how to detect JSON keys and where the string comparisons come in
+  - [X] Build basic JSONPath automaton transitions based on structural characters
+    - [ ] Improve automaton (non-recurrent states + fix fallback)
+  - [X] Look into how to detect JSON keys and where the string comparisons come in
   - [ ] Simple result recorder (wrapper around std::vector) to record results
-  - [ ] Print result count after finishing query execution
-- [ ] Research where `simdjson` validates JSON whitespace outside of strings
+- [ ] Research where/how `simdjson` validates JSON whitespace outside of strings
 - [ ] Measure flamegraph of rsonpath
-- [ ] Setup test framework (FileCheck or other i/o test)
+- [X] Setup test framework (FileCheck or other i/o test)
   - Build special small "unit"-test executables that run NPU kernels
   - Tests for CPU side JSONPath query parsing
   - End-to-end test with both CPU and NPU indexer
   - Small JSON file and expected index specified in test
     - Test entire large array so dataflow splitting etc. is tested
-- [ ] Write a bunch of tests for engine edge cases
+- [X] Write a bunch of tests for engine edge cases
   - Carry between blocks
   - Carry between chunks
   - String between blocks
   - String between chunks
+- [ ] Add CPU string index and write e2e tests w/ JSONPath
 - [ ] (Optional) Set up fancy developer tooling
   - Set up linters
     - `clangd-format` or/and `clangd-tidy` for C++

@@ -113,9 +113,55 @@ Fixed these by merging input buffer:
   - 1 channel for output to shim tile
 - Cannot utilize multiple rows due to unknown issue w/ carry (chrash at runtime)
 
-Still open:
-
 - Overhead of copying input buffer large (~1GB/s+ lost)
-  - Ping pong buffer cannot really solve it, as buffer is owned by XRT
-  - Either figure out how to pass pointer to XRT instead of memcopy and do ping pong
-  - Or copy 2 indices (quote and backslash) instead (pros: less data too)
+  - Solution: Allocate two xrt_bo's, ping pong between them, calling kernel with the right one.
+  - Copy 2 indices (quote and backslash) instead (pros: less data too)
+    - Good for string index, alhtough no benefit until optimatization. Full input still needed for structural
+
+### JSONPath engine
+
+- States should be non-reentrant:
+  - Complicated implementation by technically being able to get abritrary tokens in all states
+  - Cannot keep state during state easily. See: search_depth.
+  - Simplify by inverting loop:
+    - Main while loop is `while (query_executing)`
+    - Each state has a loop eating structurals
+    - Execution can end when the initial state does a return/fallback on the final closing
+      - State boolean `query_executing` set to false when this happens
+- Fallback is buggy / complicated
+  - Simplify by splitting into 3 use cases:
+    - Return: Exit the current state, without tail-skipping. Drops depth and ip by 1. (needed?)
+    - Fallback: Exit the current state, with tail-skipping (single level).
+    - Abort: "Exits" the current state, and passes the current structural character to the lower state to handle it.
+  - By keeping the methods handling a only a single level: we simplify the logic.
+
+#### Examples:
+
+- OpenObject + ']' -> Abort:
+  - The object was never opened, meaning we are already ending the parent level. We want to have the parent
+    (WildCard) state handle the closing structural, so it can exit itself. Fallback would get stuck on the wildcard state.
+    If there is no previous state (we are initial), error out with "Invalid JSON".
+- RecordResult + ',' -> Fallback:
+  - We just recorded a result, and want to exit the current object/array, because no duplicate keys. The fallback will
+    make sure to skip to the end of the current object/array, as we are still on a comma at the moment.
+- RecordResult + '}' -> Abort:
+  - We just recorded a result, and want to exit the current object/array. We should clean up our own state and let the previous state handle this token as well.
+- FindKey + '}' -> Abort:
+  - We were looking for a key, but have reached the end of the current object. The closing of the object should be handled
+    by the previous (OpenObject) state. This one could be stacked from "RecordResult + '}' -> Abort".
+- OpenObject + '}' -> Return:
+  - The object is empty, or we came from a higher state's Abort. Exit the current object and clean up our state.
+- WildCard + ']' -> Return:
+  - We have reached the end of the WildCard array, so we will clean up our own state and lower to the previous.
+- FindKey + ',' -> ?:
+  - If we have not yet found a key in the current object, we should continue, but if we have, we can tail skip here.
+    - TODO: How to maintain this state? boolean on the stack?
+- WildCard + ',' -> void:
+  - We skip the comma and continue with the next key/array value.
+- WildCard + ':' -> ?:
+  - Important in the wildcard state to handle both objects and arrays correctly. This token can appear in objects.
+    We should `advance()` so OpenObject can handle the following '{' if there is one. WildCard for array should
+    `advance()` immediately after eating the first opening. Each time we come back, we can eat a comma and then
+    `advance()` again, either immediately for array or after this ':' again for an object.
+- WildCard + '}' -> Return:
+  - We have reached the end of the WildCard object, so we will clean up our own state and lower to the previous.
