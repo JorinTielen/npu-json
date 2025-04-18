@@ -55,10 +55,16 @@ int main(int argc, char *argv[]) {
   // TODO: Parse query from string
   auto query = new jsonpath::Query {
     {
-      jsonpath::segments::Name { "statuses" },
+      // jsonpath::segments::Name { "statuses" },
+      // jsonpath::segments::Wildcard {},
+      // jsonpath::segments::Name { "user" },
+      // jsonpath::segments::Name { "lang" }
+
+      jsonpath::segments::Name { "products" },
       jsonpath::segments::Wildcard {},
-      jsonpath::segments::Name { "user" },
-      jsonpath::segments::Name { "lang" }
+      jsonpath::segments::Name { "videoChapters" },
+      jsonpath::segments::Wildcard {},
+      jsonpath::segments::Name { "chapter" }
     }
   };
 

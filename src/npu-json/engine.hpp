@@ -54,19 +54,50 @@ private:
   std::unique_ptr<jsonpath::ByteCode> byte_code;
 
   // Engine execution state
+  bool executing_query = false;
+  std::stack<StackFrame> stack;
+
   size_t current_instruction_pointer = 0;
   size_t current_depth = 0;
   StructureType current_structure_type;
-  std::stack<StackFrame> stack;
-  size_t possible_result_start_position = 0;
+  std::optional<StructuralCharacter> previous_structural;
 
-  void handle_open_structure(StructuralCharacter structural_character, StructureType structure_type, structural::Iterator &iterator);
-  void handle_find_key(StructuralCharacter structural_character, std::string &json, std::string &search_key, structural::Iterator &iterator);
-  void handle_wildcard(StructuralCharacter structural_character, structural::Iterator &iterator);
-  void handle_record_result(StructuralCharacter structural_character, std::string &json, structural::Iterator &iterator, ResultSet &result_set);
+  // State implementations
+  void handle_open_structure(
+    StructureType structure_type,
+    structural::Iterator &iterator,
+    std::optional<StructuralCharacter> initial_structural_character
+  );
+  void handle_find_key(
+    std::string &json,
+    std::string &search_key,
+    structural::Iterator &iterator,
+    std::optional<StructuralCharacter> initial_structural_character
+  );
+  void handle_wildcard(
+    structural::Iterator &iterator,
+    std::optional<StructuralCharacter> initial_structural_character
+  );
+  void handle_record_result(
+    std::string &json,
+    structural::Iterator &iterator,
+    ResultSet &result_set,
+    std::optional<StructuralCharacter> initial_structural_character
+  );
 
+  // State movement functions
   void advance();
-  void fallback(structural::Iterator &iterator, bool skip_first = true);
+  void fallback(structural::Iterator &iterator);
+  void abort(StructuralCharacter structural_character);
+  void back();
+
+  // Helper functions
+  void enter(StructureType structure_type);
+  void exit(StructureType structure_type);
   void restore_state_from_stack(StackFrame &frame);
-  void skip_current_structure(structural::Iterator &iterator, StructureType structure_type);
+  void pass_structural(StructuralCharacter structural_character);
+  std::optional<StructuralCharacter> passed_previous_structural();
+  size_t calculate_query_depth();
+
+  StructuralCharacter skip_current_structure(structural::Iterator &iterator, StructureType structure_type);
 };

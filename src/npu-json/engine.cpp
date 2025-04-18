@@ -29,52 +29,62 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
   // $.statuses[*].user.lang
   // OPEN_OBJECT, FIND_KEY "statuses", OPEN_OBJECT, WILDCARD, FIND_KEY "user", OPEN_OBJECT, FIND_KEY "lang", RECORD_RESULT
 
-  // print_byte_code(byte_code->instructions);
+  print_byte_code(byte_code->instructions);
 
-  while (auto structural_character = structural_iterator->get_next_structural_character()) {
+  executing_query = true;
+
+  while (executing_query) {
     auto current_instruction = byte_code->instructions[current_instruction_pointer];
+    auto previous_structural = passed_previous_structural();
+
+    // std::cout << "Executing(" << current_instruction_pointer << "): ";
 
     using jsonpath::Opcode;
     switch (current_instruction.opcode) {
       case Opcode::OpenObject: {
+        // std::cout << "OpenObject" << std::endl;
         handle_open_structure(
-          structural_character.value(),
           StructureType::Object,
-          *structural_iterator.get()
+          *structural_iterator.get(),
+          previous_structural
         );
         break;
       }
       case Opcode::OpenArray: {
+        // std::cout << "OpenArray" << std::endl;
         handle_open_structure(
-          structural_character.value(),
           StructureType::Array,
-          *structural_iterator.get()
+          *structural_iterator.get(),
+          previous_structural
         );
         break;
       }
       case Opcode::FindKey: {
+        // std::cout << "FindKey" << std::endl;
         assert(current_instruction.search_key.has_value());
         handle_find_key(
-          structural_character.value(),
           json,
           current_instruction.search_key.value(),
-          *structural_iterator.get()
+          *structural_iterator.get(),
+          previous_structural
         );
         break;
       }
       case Opcode::WildCard: {
+        // std::cout << "WildCard" << std::endl;
         handle_wildcard(
-          structural_character.value(),
-          *structural_iterator.get()
+          *structural_iterator.get(),
+          previous_structural
         );
         break;
       }
       case Opcode::RecordResult: {
+        // std::cout << "RecordResult" << std::endl;
         handle_record_result(
-          structural_character.value(),
           json,
           *structural_iterator.get(),
-          *result_set.get()
+          *result_set.get(),
+          previous_structural
         );
         break;
       }
@@ -86,24 +96,85 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
   return result_set;
 }
 
-void Engine::handle_open_structure(StructuralCharacter structural_character,
-                                   StructureType structure_type, structural::Iterator &iterator) {
-  if ((structural_character.c == '{' && structure_type == StructureType::Object) ||
-      (structural_character.c == '[' && structure_type == StructureType::Array)) {
-    current_depth++;
-    current_structure_type = structure_type;
-    stack.emplace(current_instruction_pointer, current_structure_type, current_depth);
-    advance();
-  } else {
-    fallback(iterator);
+void Engine::handle_open_structure(
+  StructureType structure_type,
+  structural::Iterator &iterator,
+  std::optional<StructuralCharacter> initial_structural_character
+) {
+  auto structural_character = initial_structural_character.has_value()
+    ? initial_structural_character
+    : iterator.get_next_structural_character();
+
+  if (!structural_character.has_value()) {
+    throw EngineError("Unexpected end of JSON");
+  }
+
+  auto query_depth = calculate_query_depth();
+
+  while (structural_character.has_value()) {
+    auto s = structural_character.value();
+    // std::cout << "  current_depth: " << current_depth << std::endl;
+    // std::cout << "  query_depth: " << query_depth << std::endl;
+    switch (s.c) {
+      case '{': {
+        // std::cout << "  enter(Object)" << std::endl;
+        enter(StructureType::Object);
+        if (structure_type == StructureType::Object) {
+          // std::cout << "  advance()" << std::endl;
+          advance();
+        } else {
+          fallback(iterator);
+        }
+        return;
+      }
+      case '[': {
+        enter(StructureType::Array);
+        if (structure_type == StructureType::Array) {
+          advance();
+        } else {
+          fallback(iterator);
+        }
+        return;
+      }
+      case '}':
+      case ']': {
+        // What we need to do depends on the depth at which we are searching.
+        // If we exit the parent structure, we abort. If the closing structural
+        // is at the expected depth we can close our own structure normally.
+        assert(current_depth >= query_depth - 1);
+        assert(current_depth <= query_depth);
+        if (current_depth == query_depth) {
+          exit(s.c == '}' ? StructureType::Object : StructureType::Array);
+          back();
+        } else {
+          abort(s);
+        }
+        return;
+      }
+      case ':': {
+        // Ignore colon if it came from a previous FindKey.
+        if (current_depth == query_depth) {
+          // There should never be a colon at this level in this state.
+          throw EngineError("Unexpected colon");
+        }
+        break;
+      }
+      case ',': {
+        back();
+        return;
+      }
+    }
+
+    structural_character = iterator.get_next_structural_character();
   }
 }
 
 bool check_key_match(std::string &json, size_t colon_position, std::string &search_key) {
+  // std::cout << "    check_key_match()" << std::endl;
   // {"a" : 1 }
   // 0123456789
   //    ^
-  size_t current_position = colon_position;
+  size_t current_position = colon_position - 1;
   while (json[current_position] != '"') {
     assert(current_position > 0);
     current_position--;
@@ -113,8 +184,9 @@ bool check_key_match(std::string &json, size_t colon_position, std::string &sear
 
   size_t start_position = current_position - search_key.length();
 
-  // std::cout << "check_key_match" << std::endl;
-  // std::cout << std::string(json.c_str() + start_position, search_key.length()) << std::endl;
+  if (!(json[start_position - 1] == '"' && json[start_position - 2] != '\\')) return false;
+
+  // std::cout << "      " << '"' << std::string(json.c_str() + start_position, search_key.length()) << '"' << std::endl;
 
   auto match = memmem(
     json.c_str() + start_position,
@@ -126,26 +198,52 @@ bool check_key_match(std::string &json, size_t colon_position, std::string &sear
   return match != nullptr;
 }
 
-void Engine::handle_find_key(StructuralCharacter structural_character, std::string &json,
-                             std::string &search_key, structural::Iterator &iterator) {
-  size_t search_depth = current_depth;
+void Engine::handle_find_key(
+  std::string &json,
+  std::string &search_key,
+  structural::Iterator &iterator,
+  std::optional<StructuralCharacter> initial_structural_character
+) {
+  auto structural_character = initial_structural_character.has_value()
+    ? initial_structural_character
+    : iterator.get_next_structural_character();
 
-  auto structural_character_opt = std::optional<StructuralCharacter>(structural_character);
+  if (!structural_character.has_value()) {
+    throw EngineError("Unexpected end of JSON");
+  }
 
-  while (structural_character_opt.has_value()) {
-    switch (structural_character_opt.value().c) {
+  auto query_depth = calculate_query_depth();
+
+  while (structural_character.has_value()) {
+    auto s = structural_character.value();
+    // std::cout << "  current_depth: " << current_depth << std::endl;
+    // std::cout << "  query_depth: " << query_depth << std::endl;
+    switch (s.c) {
+      case '{':
+      case '[':
+        current_depth++;
+        break;
+      case '}':
+      case ']': {
+        if (current_depth == query_depth) {
+          // We matched no keys and reached the end of the object, so we abort.
+          // std::cout << "  abort()" << std::endl;
+          abort(s);
+          return;
+        } else {
+          current_depth--;
+        }
+        break;
+      }
       case ':': {
-        // Only check keys at the current depth
-        if (current_depth == search_depth) {
+        // Only check keys at the correct depth
+        if (current_depth == query_depth) {
           // Match the key before the colon
-          // auto around_colon = std::string(json.c_str() + structural_character_opt.value().pos - 10, 20);
-          // std::replace(around_colon.begin(), around_colon.end(), '\n', ' ');
-          // std::replace(around_colon.begin(), around_colon.end(), '\r', ' ');
-          // std::replace(around_colon.begin(), around_colon.end(), '\t', ' ');
-          // std::cout << "check_key_match: " << search_key << " -> " << "|" << around_colon << "|" << std::endl;
-          auto matched = check_key_match(json, structural_character_opt.value().pos, search_key);
+          // std::cout << "  check_key_match()" << std::endl;
+          auto matched = check_key_match(json, s.pos, search_key);
           if (matched) {
-            possible_result_start_position = structural_character_opt.value().pos + 1;
+            // std::cout << "  advance()" << std::endl;
+            pass_structural(s);
             advance();
             return;
           }
@@ -155,101 +253,255 @@ void Engine::handle_find_key(StructuralCharacter structural_character, std::stri
       case ',':
         // Last key did not match, we are still in the FindKey state, so skip the comma.
         break;
+      default:
+        __builtin_unreachable();
+    }
+
+    structural_character = iterator.get_next_structural_character();
+  }
+}
+
+void Engine::handle_wildcard(
+  structural::Iterator &iterator,
+  std::optional<StructuralCharacter> initial_structural_character
+) {
+  auto structural_character = initial_structural_character.has_value()
+    ? initial_structural_character
+    : iterator.get_next_structural_character();
+
+  if (!structural_character.has_value()) {
+    throw EngineError("Unexpected end of JSON");
+  }
+
+  auto query_depth = calculate_query_depth();
+
+  while (structural_character.has_value()) {
+    auto s = structural_character.value();
+    // std::cout << "  structural_character: " << s.c << std::endl;
+    // std::cout << "  current_depth: " << current_depth << std::endl;
+    // std::cout << "  query_depth: " << query_depth << std::endl;
+    switch (s.c) {
+      case '{': {
+        enter(StructureType::Object);
+        break;
+      }
+      case '[': {
+        enter(StructureType::Array);
+        advance();
+        return;
+      }
+      case '}':
+      case ']': {
+        // What we need to do depends on the depth at which we are searching.
+        // If we exit the parent structure, we abort. If the closing structural
+        // is at the expected depth we can close our own structure normally.
+        assert(current_depth >= query_depth);
+        assert(current_depth <= query_depth + 1);
+        if (current_depth == query_depth) {
+          exit(s.c == '{' ? StructureType::Object : StructureType::Array);
+          back();
+        } else {
+          abort(s);
+        }
+        return;
+      }
+      case ':': {
+        // Ignore the colon if it came from a previous Findkey.
+        if (current_depth == query_depth + 1) {
+          if (current_structure_type == StructureType::Object) {
+            advance();
+            return;
+          } else {
+            throw EngineError("Unexpected colon in array");
+          }
+        }
+        break;
+      }
+      case ',': {
+        // For wildcards, we want to skip comma's and enter all child-structures.
+        // Therefore, when we are an array, we should advance for the second, third, etc. element
+        // after a comma at the correct depth.
+        if (current_depth == query_depth) {
+          if (current_structure_type == StructureType::Array) {
+            advance();
+            return;
+          }
+        }
+        break;
+      }
+      default:
+        __builtin_unreachable();
+    }
+
+    structural_character = iterator.get_next_structural_character();
+  }
+}
+
+void Engine::handle_record_result(
+  std::string &json,
+  structural::Iterator &iterator,
+  ResultSet &result_set,
+  std::optional<StructuralCharacter> initial_structural_character
+) {
+  auto structural_character = initial_structural_character.has_value()
+    ? initial_structural_character
+    : iterator.get_next_structural_character();
+
+  if (!structural_character.has_value()) {
+    throw EngineError("Unexpected end of JSON");
+  }
+
+  auto start_pos = structural_character.value().pos;
+  auto query_depth = calculate_query_depth();
+
+  while (structural_character.has_value()) {
+    auto s = structural_character.value();
+    // std::cout << "  current_depth: " << current_depth << std::endl;
+    // std::cout << "  query_depth: " << query_depth << std::endl;
+    switch (s.c) {
       case '{':
       case '[':
+        // For complex results, we want to record the entire structure.
         current_depth++;
         break;
       case '}':
       case ']': {
-        current_depth--;
-        if (current_depth == search_depth - 1) {
-          // We matched no keys and reached the end of the object, so we fall back.
-          fallback(iterator, false);
+        assert(current_depth > query_depth - 1);
+        if (current_depth == query_depth) {
+          // If this was the last key or value in the array, this closing marks the end of the result value.
+          // std::cout << "  record_result()" << std::endl;
+          result_set.record_result(json, start_pos + 1, s.pos - 1);
+          // std::cout << "  abort()" << std::endl;
+          abort(s);
+          return;
+        } else {
+          current_depth--;
+        }
+        break;
+      }
+      case ':': {
+        // Either passed as the initial structural by FindKey, or a nested colon.
+        break;
+      }
+      case ',': {
+        if (current_depth == query_depth) {
+          // Record a result at this position
+          // std::cout << "  record_result()" << std::endl;
+          result_set.record_result(json, start_pos + 1, s.pos - 1);
+          // std::cout << "  back()" << std::endl;
+          back();
           return;
         }
         break;
       }
     }
 
-    structural_character_opt = iterator.get_next_structural_character();
+    structural_character = iterator.get_next_structural_character();
   }
 }
 
-void Engine::handle_wildcard(StructuralCharacter structural_character, structural::Iterator &iterator) {
-  if (structural_character.c == '{') {
-    current_depth++;
-    current_structure_type = StructureType::Object;
-    stack.emplace(current_instruction_pointer, current_structure_type, current_depth);
-    advance();
-  } else if (structural_character.c == '[') {
-    current_depth++;
-    current_structure_type = StructureType::Array;
-    stack.emplace(current_instruction_pointer, current_structure_type, current_depth);
-    advance();
-  } else if (structural_character.c == '}' || structural_character.c == ']') {
-    // End of wildcard, fall back to a previous one if there is one.
-    stack.pop();
-    auto frame = stack.top();
-    restore_state_from_stack(frame);
-  } else if (structural_character.c == ',') {
-    // Skip the comma on wildcards
-    return;
-  } else {
-    throw EngineError("Unexpected JSON structural character");
-  }
-}
-
-void Engine::handle_record_result(StructuralCharacter structural_character, std::string &json,
-                                  structural::Iterator &iterator, ResultSet &result_set) {
-  // std::cout << "record result: " << possible_result_start_position << ", " << structural_character.pos << std::endl;
-  // std::cout << std::string(json, possible_result_start_position, structural_character.pos - possible_result_start_position) << std::endl;
-  result_set.record_result(possible_result_start_position, structural_character.pos);
-
-  if ((structural_character.c == '}' && current_structure_type == StructureType::Object) ||
-      (structural_character.c == ']' && current_structure_type == StructureType::Array)) {
-    fallback(iterator, false);
-  } else if (structural_character.c == ',') {
-    fallback(iterator);
-  } else {
-    throw EngineError("Unexpected JSON structural character");
-  }
-}
-
+// Advance to the next state.
 void Engine::advance() {
   assert(current_instruction_pointer < byte_code->instructions.size());
+
+  stack.emplace(current_instruction_pointer, current_structure_type, current_depth);
 
   current_instruction_pointer++;
 }
 
-// Unwinds engine bytecode execution towards the nearest Wildcard instruction
-// if there is one, tail-skipping JSON structures as depth is reduced.
-void Engine::fallback(structural::Iterator &iterator, bool skip_first) {
-  auto skipped_first = false;
+// Exit the current state, tail-skipping to to end of the structure.
+void Engine::fallback(structural::Iterator &iterator) {
+  assert(!stack.empty());
 
-  while (!stack.empty()) {
-    auto frame = stack.top();
+  auto last_structural = skip_current_structure(iterator, current_structure_type);
+  pass_structural(last_structural);
 
-    auto frame_instruction = byte_code->instructions[frame.instruction_pointer];
-    if (frame_instruction.opcode == jsonpath::Opcode::WildCard) break;
-
-    restore_state_from_stack(frame);
-
-    stack.pop();
-
-    if (skip_first || skipped_first) {
-      skip_current_structure(iterator, frame.structure_type);
-      skipped_first = true;
-    }
-  }
+  back();
 }
 
+// Exit the current state, allowing the previous state to handle the current token.
+void Engine::abort(StructuralCharacter structural_character) {
+  // std::cout << "    " << structural_character.c << std::endl;
+  pass_structural(structural_character);
+
+  back();
+}
+
+// Exit the current state, without tail-skipping.
+void Engine::back() {
+  if (stack.empty()) {
+    // We exited the top state, therefore ending query execution.
+    executing_query = false;
+    return;
+  }
+
+  auto frame = stack.top();
+  restore_state_from_stack(frame);
+  stack.pop();
+}
+
+// Enters a JSON structure.
+void Engine::enter(StructureType structure_type) {
+  current_depth++;
+  current_structure_type = structure_type;
+}
+
+// Exits a JSON structure.
+// Does not restore any state from stack, make sure to call back,abort,fallback after.
+void Engine::exit(StructureType structure_type) {
+  if (current_depth == 0) throw EngineError("Invalid JSON");
+  if (structure_type != current_structure_type) throw EngineError("Unbalanced JSON structures");
+
+  current_depth--;
+}
+
+// Restore the engine state from a stack frame.
 void Engine::restore_state_from_stack(StackFrame &frame) {
   current_depth = frame.depth;
   current_structure_type = frame.structure_type;
   current_instruction_pointer = frame.instruction_pointer;
 }
 
-void Engine::skip_current_structure(structural::Iterator &iterator, StructureType structure_type) {
+// Pass a structural character to the next engine state.
+void Engine::pass_structural(StructuralCharacter structural_character) {
+  previous_structural = std::optional<StructuralCharacter>(structural_character);
+}
+
+// Retrieve the passed structural character from the previous state, if there is one.
+std::optional<StructuralCharacter> Engine::passed_previous_structural() {
+  if (previous_structural.has_value()) {
+    auto s = previous_structural.value();
+    previous_structural = std::optional<StructuralCharacter>();
+    return std::optional<StructuralCharacter>(s);
+  } else {
+    return std::optional<StructuralCharacter>();
+  }
+}
+
+size_t Engine::calculate_query_depth() {
+  auto depth = 0;
+  for (size_t i = 0; i <= current_instruction_pointer; i++) {
+    auto instruction = byte_code->instructions[i];
+    using jsonpath::Opcode;
+    switch (instruction.opcode) {
+      case Opcode::OpenArray:
+      case Opcode::OpenObject:
+      case Opcode::WildCard:
+        depth++;
+        break;
+      default:
+        break;
+    }
+  }
+
+  return depth;
+}
+
+// Skip the current JSON structure.
+StructuralCharacter Engine::skip_current_structure(
+  structural::Iterator &iterator,
+  StructureType structure_type
+) {
   size_t skip_depth = current_depth;
 
   std::optional<StructuralCharacter> structural_character;
@@ -284,4 +536,6 @@ void Engine::skip_current_structure(structural::Iterator &iterator, StructureTyp
       (structure_type == StructureType::Array  && structural_character.value().c != ']')) {
     throw EngineError("Unbalanced JSON structures");
   }
+
+  return structural_character.value();
 }
