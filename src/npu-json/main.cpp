@@ -6,10 +6,13 @@
 
 #include <npu-json/jsonpath/query.hpp>
 #include <npu-json/util/files.hpp>
+#include <npu-json/util/tracer.hpp>
 #include <npu-json/engine.hpp>
 #include <npu-json/options.hpp>
 
 void run_bench(std::string data, Engine &engine) {
+  std::cout << "Starting benchmark..." << std::endl;
+
   constexpr size_t WARMUP_ITERS = 3;
   constexpr size_t BENCH_ITERS = 10;
 
@@ -17,9 +20,12 @@ void run_bench(std::string data, Engine &engine) {
     engine.run_query_on(data);
   }
 
+  std::cout << "Finished warmup..." << std::endl;
+
   auto start = std::chrono::high_resolution_clock::now();
 
   for (size_t i = 0; i < BENCH_ITERS; i++) {
+    std::cout << "Iteration " << i << "..." << std::endl;
     engine.run_query_on(data);
   }
 
@@ -28,6 +34,7 @@ void run_bench(std::string data, Engine &engine) {
 
   auto seconds = std::chrono::duration<double>(avg_runtime).count();
   double gigabytes = (double)data.size() / 1000 / 1000 / 1000;
+  std::cout << "Finished benchmark!" << std::endl;
   std::cout << "performed query on average in " << seconds << "s:" << std::endl;
   std::cout << "size: " << gigabytes << "GB" << std::endl;
   std::cout << "GB/s: " << gigabytes / seconds << std::endl;

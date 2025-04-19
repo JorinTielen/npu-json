@@ -29,7 +29,7 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
   // $.statuses[*].user.lang
   // OPEN_OBJECT, FIND_KEY "statuses", OPEN_OBJECT, WILDCARD, FIND_KEY "user", OPEN_OBJECT, FIND_KEY "lang", RECORD_RESULT
 
-  print_byte_code(byte_code->instructions);
+  // print_byte_code(byte_code->instructions);
 
   executing_query = true;
 

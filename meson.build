@@ -12,6 +12,7 @@ project_source_files = [
   'src/npu-json/npu/indexer.cpp',
   'src/npu-json/structural/classifier.cpp',
   'src/npu-json/structural/iterator.cpp',
+  'src/npu-json/util/tracer.cpp',
   'src/npu-json/engine.cpp',
   'src/npu-json/result-set.cpp',
 ]
