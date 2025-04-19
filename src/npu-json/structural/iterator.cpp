@@ -37,18 +37,19 @@ void Iterator::switch_to_next_chunk() {
   if (chunk_idx >= json.length()) throw std::logic_error("Iterator passed the end of input");
 
   // Prepare the chunk for indexing
-  // TODO: Avoid double copy
   auto remaining_length = json.length() - chunk_idx;
   auto padding_needed = remaining_length < Engine::CHUNK_SIZE;
   auto n = padding_needed ? remaining_length : Engine::CHUNK_SIZE;
-  memcpy(chunk->data(), json.c_str() + chunk_idx, n);
   if (padding_needed) {
     // Pad with spaces at end
+    memcpy(chunk->data(), json.c_str() + chunk_idx, n);
     memset(chunk->data() + n, ' ', Engine::CHUNK_SIZE - n);
   }
 
   // Index the new current chunk
-  auto chunk_data = reinterpret_cast<const char *>(chunk->data());
+  auto chunk_data = padding_needed
+    ? reinterpret_cast<const char *>(chunk->data())
+    : json.c_str() + chunk_idx;
   structural_index = indexer->construct_structural_index(
     chunk_data,
     chunk_carry_escape,
