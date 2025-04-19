@@ -69,7 +69,7 @@ StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_
 void StructuralIndexer::construct_escape_carry_index(const char *chunk,
     std::array<uint32_t, CARRY_INDEX_SIZE> &index, bool first_escape_carry) {
   index[0] = first_escape_carry;
-  for (size_t i = 1; i < Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; i++) {
+  for (size_t i = 1; i <= Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; i++) {
     auto is_escape_char = chunk[i * Engine::BLOCK_SIZE - 1] == '\\';
     if (!is_escape_char) {
       index[i] = false;

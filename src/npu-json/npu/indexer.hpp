@@ -10,7 +10,7 @@
 
 namespace npu {
 
-constexpr size_t CARRY_INDEX_SIZE = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
+constexpr size_t CARRY_INDEX_SIZE = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE + 1;
 constexpr size_t INDEX_SIZE = Engine::CHUNK_SIZE / 8;
 
 class StructuralIndex {
