@@ -52,8 +52,15 @@ int main(int argc, char *argv[]) {
   }
 
   bool bench = false;
-  if (argc == 3 && std::string(argv[2]) == "--bench") {
+  if ((argc == 3 && std::string(argv[2]) == "--bench") ||
+      (argc == 4 && std::string(argv[3]) == "--bench")) {
     bench = true;
+  }
+
+  bool trace = false;
+  if ((argc == 3 && std::string(argv[2]) == "--trace") ||
+      (argc == 4 && std::string(argv[3]) == "--trace")) {
+    trace = true;
   }
 
   // Read in JSON file
@@ -81,6 +88,11 @@ int main(int argc, char *argv[]) {
     run_bench(data, engine);
   } else {
     run_single(data, engine);
+  }
+
+  if (trace) {
+    auto& tracer = util::Tracer::get_instance();
+    tracer.export_traces("traces.csv");
   }
 
   delete query;

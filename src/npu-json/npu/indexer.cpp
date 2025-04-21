@@ -5,6 +5,7 @@
 #include <npu-json/npu/indexer.hpp>
 #include <npu-json/structural/classifier.hpp>
 #include <npu-json/util/debug.hpp>
+#include <npu-json/util/tracer.hpp>
 
 namespace npu {
 
@@ -68,6 +69,9 @@ StructuralIndexer::StructuralIndexer(std::string xclbin_path, std::string insts_
 
 void StructuralIndexer::construct_escape_carry_index(const char *chunk,
     std::array<uint32_t, CARRY_INDEX_SIZE> &index, bool first_escape_carry) {
+  auto& tracer = util::Tracer::get_instance();
+  auto trace = tracer.start_trace("construct_escape_carry_index");
+
   index[0] = first_escape_carry;
   for (size_t i = 1; i <= Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; i++) {
     auto is_escape_char = chunk[i * Engine::BLOCK_SIZE - 1] == '\\';
@@ -84,12 +88,17 @@ void StructuralIndexer::construct_escape_carry_index(const char *chunk,
 
     index[i] = is_escape_char;
   }
+
+  tracer.finish_trace(trace);
 }
 
 void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *index,
     uint32_t *escape_carries, bool first_string_carry) {
   // If the NPU is not initialized, we will not call a kernel here.
   if (!npu_initialized) throw std::logic_error("NPU was not initialized");
+
+  auto& tracer = util::Tracer::get_instance();
+  auto trace = tracer.start_trace("construct_string_index");
 
   // Copy input into buffer
   auto buf_in = bo_in.map<uint8_t *>();
@@ -120,10 +129,15 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
     auto last_vector = index[(block + 1) * vectors_in_block - 1];
     last_block_inside_string = static_cast<int64_t>(last_vector) >> 63;
   }
+
+  tracer.finish_trace(trace);
 }
 
 void StructuralIndexer::construct_structural_character_index(const char *chunk, StructuralIndex &index) {
   constexpr unsigned int N = 64;
+
+  auto& tracer = util::Tracer::get_instance();
+  auto trace = tracer.start_trace("construct_structural_structural_character_index");
 
   auto classifier = structural::Classifier();
   classifier.toggle_colons_and_commas();
@@ -143,6 +157,8 @@ void StructuralIndexer::construct_structural_character_index(const char *chunk, 
       nonquoted_structural = nonquoted_structural & (nonquoted_structural - 1);
     }
   }
+
+  tracer.finish_trace(trace);
 }
 
 // TODO: Clean up this ugly global shared pointer. Allocate it once in the engine

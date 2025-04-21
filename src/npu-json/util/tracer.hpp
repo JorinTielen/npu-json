@@ -28,11 +28,9 @@ public:
   trace_id start_trace(std::string task);
   void finish_trace(trace_id id);
 
-  std::string export_traces();
+  void export_traces(const std::string &file_name);
 private:
   Tracer() {}
-  // Tracer(Tracer const&);         // Don't Implement
-  // void operator=(Tracer const&); // Don't implement
 
   std::vector<Trace> traces;
 public:

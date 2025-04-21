@@ -1,5 +1,6 @@
 #include <chrono>
-#include <sstream>
+#include <fstream>
+#include <iostream>
 
 #include <npu-json/util/tracer.hpp>
 
@@ -22,14 +23,14 @@ void Tracer::finish_trace(trace_id id) {
   trace.duration_ns = end_ns.count() - trace.start_ns;
 }
 
-std::string Tracer::export_traces() {
-  std::stringstream output;
+void Tracer::export_traces(const std::string &file_name) {
+  std::ofstream output(file_name);
+
+  output << "task,start_ns,duration_ns" << std::endl;
 
   if (traces.empty()) {
-    return std::string();
+    return;
   }
-
-  output << "task,start,duration" << std::endl;
 
   auto first_start_ns = traces[0].start_ns;
 
@@ -37,8 +38,6 @@ std::string Tracer::export_traces() {
     auto start_ns = trace.start_ns - first_start_ns;
     output << trace.task << "," << start_ns << "," << trace.duration_ns << std::endl;
   }
-
-  return output.str();
 }
 
 } // namespace util
