@@ -13,13 +13,13 @@ uint32_t trailing_zeroes(uint64_t mask) {
   return __builtin_ctzll(mask);
 }
 
-std::optional<StructuralCharacter> StructuralIndex::get_next_structural_character() {
+StructuralCharacter* StructuralIndex::get_next_structural_character() {
   if (current_pos < structurals_count) {
-    auto c = structural_characters[current_pos];
+    auto ptr = &structural_characters[current_pos];
     current_pos++;
-    return std::optional<StructuralCharacter>(c);
+    return ptr;
   }
-  return std::optional<StructuralCharacter>();
+  return nullptr;
 }
 
 bool StructuralIndex::ends_in_string() {
@@ -133,7 +133,11 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
   tracer.finish_trace(trace);
 }
 
-void StructuralIndexer::construct_structural_character_index(const char *chunk, StructuralIndex &index) {
+void StructuralIndexer::construct_structural_character_index(
+  const char *chunk,
+  StructuralIndex &index,
+  size_t chunk_idx
+) {
   constexpr unsigned int N = 64;
 
   auto& tracer = util::Tracer::get_instance();
@@ -152,7 +156,7 @@ void StructuralIndexer::construct_structural_character_index(const char *chunk, 
 
     while (nonquoted_structural) {
       auto structural_idx = (i * N) + trailing_zeroes(nonquoted_structural);
-      *tail++ = { chunk[structural_idx], structural_idx };
+      *tail++ = { chunk[structural_idx], structural_idx + chunk_idx };
       index.structurals_count++;
       nonquoted_structural = nonquoted_structural & (nonquoted_structural - 1);
     }
@@ -165,15 +169,19 @@ void StructuralIndexer::construct_structural_character_index(const char *chunk, 
 // Perhaps the entire engine/indexer concept has to be reconsidered. (chunk is copied twice)
 auto index = std::make_shared<StructuralIndex>();
 
-std::shared_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(const char *chunk,
-    bool first_escape_carry, bool first_string_carry) {
+std::shared_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(
+  const char *chunk,
+  bool first_escape_carry,
+  bool first_string_carry,
+  size_t chunk_idx
+) {
   index->reset();
 
   construct_escape_carry_index(chunk, index->escape_carry_index, first_escape_carry);
   if (npu_initialized) {
     construct_string_index(chunk, index->string_index.data(), index->escape_carry_index.data(), first_string_carry);
   }
-  construct_structural_character_index(chunk, *index);
+  construct_structural_character_index(chunk, *index, chunk_idx);
 
   return index;
 }

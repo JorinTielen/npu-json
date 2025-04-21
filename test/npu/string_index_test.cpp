@@ -55,7 +55,7 @@ bool test_string_index(const char *test, std::shared_ptr<npu::StructuralIndexer>
   write_expected_index(expected_index, expected_str);
 
   // Run indexer
-  auto structural_index = indexer->construct_structural_index(chunk, false, false);
+  auto structural_index = indexer->construct_structural_index(chunk, false, false, 0);
 
   // Expect results
   auto result = false;

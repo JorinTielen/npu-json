@@ -22,7 +22,7 @@ TEST_CASE("sets index bit when block ends on escape") {
 
   auto indexer = std::make_unique<npu::StructuralIndexer>("test.xclbin", "test-insts.txt", false);
 
-  auto structural_index = indexer->construct_structural_index(chunk, false, false);
+  auto structural_index = indexer->construct_structural_index(chunk, false, false, 0);
 
   REQUIRE(structural_index->escape_carry_index[0] == false);
   REQUIRE(structural_index->escape_carry_index[1] == true);
@@ -39,7 +39,7 @@ TEST_CASE("sets first index bit when carry boolean is passed") {
 
   auto indexer = std::make_unique<npu::StructuralIndexer>("test.xclbin", "test-insts.txt", false);
 
-  auto structural_index = indexer->construct_structural_index(chunk, true, false);
+  auto structural_index = indexer->construct_structural_index(chunk, true, false, 0);
 
   REQUIRE(structural_index->escape_carry_index[0] == true);
 
@@ -63,7 +63,7 @@ TEST_CASE("sets index bit only for odd sequences of backslashes") {
 
   auto indexer = std::make_unique<npu::StructuralIndexer>("test.xclbin", "test-insts.txt", false);
 
-  auto structural_index = indexer->construct_structural_index(chunk, false, false);
+  auto structural_index = indexer->construct_structural_index(chunk, false, false, 0);
 
   REQUIRE(structural_index->escape_carry_index[1] == true);
   REQUIRE(structural_index->escape_carry_index[2] == false);
@@ -80,7 +80,7 @@ TEST_CASE("sets index bit when chunk ends on escape (last block)") {
 
   auto indexer = std::make_unique<npu::StructuralIndexer>("test.xclbin", "test-insts.txt", false);
 
-  auto structural_index = indexer->construct_structural_index(chunk, false, false);
+  auto structural_index = indexer->construct_structural_index(chunk, false, false, 0);
 
   auto blocks_in_chunk = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
   REQUIRE(structural_index->escape_carry_index[blocks_in_chunk] == true);

@@ -31,8 +31,6 @@ struct StructuralCharacter {
 struct StackFrame {
   size_t instruction_pointer; // The instruction being executed at this depth of the JSON (sub-)tree
   StructureType structure_type; // The structure type of the current object (at this depth)
-  // std::optional<std::string> search_key; // The key we are searching for (if state is FindKey && structure type is object)
-  // std::optional<size_t> search_index; // The index we are searching for (if state is FindIndex && structure type is array)
   size_t depth; // The current depth of the JSON (sub-)tree we are executing on
 
   StackFrame(size_t instruction_pointer, StructureType structure_type, size_t depth)

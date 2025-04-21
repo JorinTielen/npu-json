@@ -11,20 +11,18 @@ Iterator::Iterator(std::string &json) : json(json) {
   chunk = std::make_unique<std::array<uint8_t, Engine::CHUNK_SIZE>>();
 }
 
-std::optional<StructuralCharacter> Iterator::get_next_structural_character() {
+StructuralCharacter* Iterator::get_next_structural_character() {
   // For the first chunk we need to load it in first.
   if (chunk_idx == 0) switch_to_next_chunk();
 
   // Return next structural character in the current chunk if there is one.
   auto possible_structural = structural_index->get_next_structural_character();
-  if (possible_structural.has_value()) {
-    // TODO: Do this somewhere better
-    possible_structural.value().pos += chunk_idx - Engine::CHUNK_SIZE;
+  if (possible_structural != nullptr) {
     return possible_structural;
   }
 
   // Reached the end of the input, no more structurals to return.
-  if (chunk_idx >= json.length()) return std::optional<StructuralCharacter>();
+  if (chunk_idx >= json.length()) return nullptr;
 
   // Ran out of structurals in the current chunk, index the next one.
   switch_to_next_chunk();
@@ -53,7 +51,8 @@ void Iterator::switch_to_next_chunk() {
   structural_index = indexer->construct_structural_index(
     chunk_data,
     chunk_carry_escape,
-    chunk_carry_string
+    chunk_carry_string,
+    chunk_idx
   );
 
   // Keep track of state between chunks

@@ -17,67 +17,67 @@ TEST_CASE("detects structural characters and builds index") {
 
   auto indexer = std::make_unique<npu::StructuralIndexer>("test.xclbin", "test-insts.txt", false);
 
-  auto structural_index = indexer->construct_structural_index(chunk, false, false);
+  auto structural_index = indexer->construct_structural_index(chunk, false, false, 0);
 
   auto structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == '{');
-  REQUIRE(structural_char.value().pos == 0);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == '{');
+  REQUIRE(structural_char->pos == 0);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == ':');
-  REQUIRE(structural_char.value().pos == 7);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == ':');
+  REQUIRE(structural_char->pos == 7);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == ',');
-  REQUIRE(structural_char.value().pos == 13);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == ',');
+  REQUIRE(structural_char->pos == 13);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == ':');
-  REQUIRE(structural_char.value().pos == 23);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == ':');
+  REQUIRE(structural_char->pos == 23);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == '[');
-  REQUIRE(structural_char.value().pos == 25);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == '[');
+  REQUIRE(structural_char->pos == 25);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == '[');
-  REQUIRE(structural_char.value().pos == 26);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == '[');
+  REQUIRE(structural_char->pos == 26);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == ']');
-  REQUIRE(structural_char.value().pos == 28);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == ']');
+  REQUIRE(structural_char->pos == 28);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == ',');
-  REQUIRE(structural_char.value().pos == 29);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == ',');
+  REQUIRE(structural_char->pos == 29);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == '[');
-  REQUIRE(structural_char.value().pos == 31);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == '[');
+  REQUIRE(structural_char->pos == 31);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == ']');
-  REQUIRE(structural_char.value().pos == 33);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == ']');
+  REQUIRE(structural_char->pos == 33);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == ']');
-  REQUIRE(structural_char.value().pos == 34);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == ']');
+  REQUIRE(structural_char->pos == 34);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == '}');
-  REQUIRE(structural_char.value().pos == 35);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == '}');
+  REQUIRE(structural_char->pos == 35);
 }
 
 TEST_CASE("works across block boundaries") {
@@ -90,20 +90,20 @@ TEST_CASE("works across block boundaries") {
 
   auto indexer = std::make_unique<npu::StructuralIndexer>("test.xclbin", "test-insts.txt", false);
 
-  auto structural_index = indexer->construct_structural_index(chunk, false, false);
+  auto structural_index = indexer->construct_structural_index(chunk, false, false, 0);
 
   auto structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == '{');
-  REQUIRE(structural_char.value().pos == 60);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == '{');
+  REQUIRE(structural_char->pos == 60);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == ':');
-  REQUIRE(structural_char.value().pos == 67);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == ':');
+  REQUIRE(structural_char->pos == 67);
 
   structural_char = structural_index->get_next_structural_character();
-  REQUIRE(structural_char.has_value());
-  REQUIRE(structural_char.value().c == '}');
-  REQUIRE(structural_char.value().pos == 73);
+  REQUIRE(structural_char != nullptr);
+  REQUIRE(structural_char->c == '}');
+  REQUIRE(structural_char->pos == 73);
 }

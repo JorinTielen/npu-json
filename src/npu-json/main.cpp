@@ -74,11 +74,16 @@ int main(int argc, char *argv[]) {
       // jsonpath::segments::Name { "user" },
       // jsonpath::segments::Name { "lang" }
 
-      jsonpath::segments::Name { "products" },
+      // jsonpath::segments::Name { "products" },
+      // jsonpath::segments::Wildcard {},
+      // jsonpath::segments::Name { "videoChapters" },
+      // jsonpath::segments::Wildcard {},
+      // jsonpath::segments::Name { "chapter" }
+
+      jsonpath::segments::Name { "items" },
       jsonpath::segments::Wildcard {},
-      jsonpath::segments::Name { "videoChapters" },
-      jsonpath::segments::Wildcard {},
-      jsonpath::segments::Name { "chapter" }
+      jsonpath::segments::Name { "bestMarketplacePrice" },
+      jsonpath::segments::Name { "price" }
     }
   };
 

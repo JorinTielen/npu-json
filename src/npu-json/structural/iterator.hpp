@@ -17,8 +17,7 @@ class Iterator {
 public:
   Iterator(std::string &json);
   // Gives the next structural character
-  std::optional<StructuralCharacter> get_next_structural_character();
-  std::optional<StructuralCharacter> peek_next_structural_character();
+  StructuralCharacter* get_next_structural_character();
 private:
   size_t chunk_idx = 0;
   bool chunk_carry_escape = false;

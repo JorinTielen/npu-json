@@ -24,7 +24,7 @@ public:
   size_t structurals_count = 0;
 
   // Methods
-  std::optional<StructuralCharacter> get_next_structural_character();
+  StructuralCharacter* get_next_structural_character();
   bool ends_in_string();
   bool ends_with_escape();
   void reset();
@@ -43,11 +43,11 @@ class StructuralIndexer {
   bool npu_initialized = false;
 public:
   StructuralIndexer(std::string xclbin_path, std::string insts_path, bool initialize_npu);
-  std::shared_ptr<StructuralIndex> construct_structural_index(const char *chunk, bool, bool);
+  std::shared_ptr<StructuralIndex> construct_structural_index(const char *chunk, bool, bool, size_t);
 private:
   void construct_escape_carry_index(const char *chunk, std::array<uint32_t, CARRY_INDEX_SIZE> &index, bool);
   void construct_string_index(const char *chunk, uint64_t *index, uint32_t *escape_carries, bool);
-  void construct_structural_character_index(const char *chunk, StructuralIndex &index);
+  void construct_structural_character_index(const char *chunk, StructuralIndex &index, size_t chunk_idx);
 };
 
 } // namespace npu

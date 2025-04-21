@@ -102,17 +102,17 @@ void Engine::handle_open_structure(
   std::optional<StructuralCharacter> initial_structural_character
 ) {
   auto structural_character = initial_structural_character.has_value()
-    ? initial_structural_character
+    ? &initial_structural_character.value()
     : iterator.get_next_structural_character();
 
-  if (!structural_character.has_value()) {
+  if (structural_character == nullptr) {
     throw EngineError("Unexpected end of JSON");
   }
 
   auto query_depth = calculate_query_depth();
 
-  while (structural_character.has_value()) {
-    auto s = structural_character.value();
+  while (structural_character != nullptr) {
+    auto& s = *structural_character;
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
     switch (s.c) {
@@ -205,17 +205,17 @@ void Engine::handle_find_key(
   std::optional<StructuralCharacter> initial_structural_character
 ) {
   auto structural_character = initial_structural_character.has_value()
-    ? initial_structural_character
+    ? &initial_structural_character.value()
     : iterator.get_next_structural_character();
 
-  if (!structural_character.has_value()) {
+  if (structural_character == nullptr) {
     throw EngineError("Unexpected end of JSON");
   }
 
   auto query_depth = calculate_query_depth();
 
-  while (structural_character.has_value()) {
-    auto s = structural_character.value();
+  while (structural_character != nullptr) {
+    auto& s = *structural_character;
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
     switch (s.c) {
@@ -266,17 +266,17 @@ void Engine::handle_wildcard(
   std::optional<StructuralCharacter> initial_structural_character
 ) {
   auto structural_character = initial_structural_character.has_value()
-    ? initial_structural_character
+    ? &initial_structural_character.value()
     : iterator.get_next_structural_character();
 
-  if (!structural_character.has_value()) {
+  if (structural_character == nullptr) {
     throw EngineError("Unexpected end of JSON");
   }
 
   auto query_depth = calculate_query_depth();
 
-  while (structural_character.has_value()) {
-    auto s = structural_character.value();
+  while (structural_character != nullptr) {
+    auto& s = *structural_character;
     // std::cout << "  structural_character: " << s.c << std::endl;
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
@@ -344,18 +344,18 @@ void Engine::handle_record_result(
   std::optional<StructuralCharacter> initial_structural_character
 ) {
   auto structural_character = initial_structural_character.has_value()
-    ? initial_structural_character
+    ? &initial_structural_character.value()
     : iterator.get_next_structural_character();
 
-  if (!structural_character.has_value()) {
+  if (structural_character == nullptr) {
     throw EngineError("Unexpected end of JSON");
   }
 
-  auto start_pos = structural_character.value().pos;
+  auto start_pos = structural_character->pos;
   auto query_depth = calculate_query_depth();
 
-  while (structural_character.has_value()) {
-    auto s = structural_character.value();
+  while (structural_character != nullptr) {
+    auto& s = *structural_character;
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
     switch (s.c) {
@@ -504,12 +504,12 @@ StructuralCharacter Engine::skip_current_structure(
 ) {
   size_t skip_depth = current_depth;
 
-  std::optional<StructuralCharacter> structural_character;
+  StructuralCharacter* structural_character;
   while (skip_depth >= current_depth) {
     structural_character = iterator.get_next_structural_character();
-    if (!structural_character.has_value()) throw EngineError("Unexpected end of JSON");
+    if (structural_character == nullptr) throw EngineError("Unexpected end of JSON");
 
-    switch (structural_character.value().c) {
+    switch (structural_character->c) {
       case '{':
         skip_depth++;
         break;
@@ -532,10 +532,10 @@ StructuralCharacter Engine::skip_current_structure(
   }
 
   // TODO: Remove check if slow
-  if ((structure_type == StructureType::Object && structural_character.value().c != '}') ||
-      (structure_type == StructureType::Array  && structural_character.value().c != ']')) {
+  if ((structure_type == StructureType::Object && structural_character->c != '}') ||
+      (structure_type == StructureType::Array  && structural_character->c != ']')) {
     throw EngineError("Unbalanced JSON structures");
   }
 
-  return structural_character.value();
+  return *structural_character;
 }
