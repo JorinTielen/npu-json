@@ -170,8 +170,12 @@ void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *inde
   }
   bo_in.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
+  auto trace_npu = tracer.start_trace("npu");
+
   auto run = kernel(3, bo_instr, instr_size, bo_in, bo_out);
   run.wait();
+
+  tracer.finish_trace(trace_npu);
 
   bo_out.sync(XCL_BO_SYNC_BO_TO_DEVICE);
   auto buf_out = bo_out.map<uint64_t *>();

@@ -93,6 +93,9 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
     }
   }
 
+  // Needed for tracing, grab the empty structural character at the end of input
+  structural_iterator->get_next_structural_character();
+
   return result_set;
 }
 

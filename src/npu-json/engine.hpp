@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <stack>
+#include <string>
 
 #include <npu-json/jsonpath/byte-code.hpp>
 #include <npu-json/jsonpath/query.hpp>

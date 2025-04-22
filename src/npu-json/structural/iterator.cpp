@@ -2,6 +2,7 @@
 #include <stdexcept>
 
 #include <npu-json/structural/iterator.hpp>
+#include <npu-json/util/tracer.hpp>
 #include <npu-json/options.hpp>
 
 namespace structural {
@@ -21,11 +22,25 @@ StructuralCharacter* Iterator::get_next_structural_character() {
     return possible_structural;
   }
 
+  auto& tracer = util::Tracer::get_instance();
+  static util::trace_id automaton_trace;
+
   // Reached the end of the input, no more structurals to return.
-  if (chunk_idx >= json.length()) return nullptr;
+  if (chunk_idx >= json.length()) {
+    // Finish the last trace
+    tracer.finish_trace(automaton_trace);
+    return nullptr;
+  }
+
+  // If we have a trace, finish it so we can start a new one after indexing the next chunk.
+  if (automaton_trace != 0) {
+    tracer.finish_trace(automaton_trace);
+  }
 
   // Ran out of structurals in the current chunk, index the next one.
   switch_to_next_chunk();
+
+  automaton_trace = tracer.start_trace("automaton");
 
   // Return structural from next chunk.
   return structural_index->get_next_structural_character();
@@ -33,6 +48,7 @@ StructuralCharacter* Iterator::get_next_structural_character() {
 
 void Iterator::switch_to_next_chunk() {
   if (chunk_idx >= json.length()) throw std::logic_error("Iterator passed the end of input");
+
 
   // Prepare the chunk for indexing
   auto remaining_length = json.length() - chunk_idx;
@@ -44,6 +60,7 @@ void Iterator::switch_to_next_chunk() {
     memset(chunk->data() + n, ' ', Engine::CHUNK_SIZE - n);
   }
 
+
   // Index the new current chunk
   auto chunk_data = padding_needed
     ? reinterpret_cast<const char *>(chunk->data())
@@ -54,6 +71,7 @@ void Iterator::switch_to_next_chunk() {
     chunk_carry_string,
     chunk_idx
   );
+
 
   // Keep track of state between chunks
   chunk_carry_escape = structural_index->ends_with_escape();
