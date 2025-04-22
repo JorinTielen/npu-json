@@ -34,8 +34,13 @@ struct StackFrame {
   StructureType structure_type; // The structure type of the current object (at this depth)
   size_t depth; // The current depth of the JSON (sub-)tree we are executing on
 
-  StackFrame(size_t instruction_pointer, StructureType structure_type, size_t depth)
-    : instruction_pointer(instruction_pointer), structure_type(structure_type), depth(depth) {}
+  bool matched_key_at_depth = false; // Used for FindKey state tail-skip
+
+  StackFrame(size_t instruction_pointer, StructureType structure_type, size_t depth, bool matched_key_at_depth)
+    : instruction_pointer(instruction_pointer)
+    , structure_type(structure_type)
+    , depth(depth)
+    , matched_key_at_depth(matched_key_at_depth) {}
 };
 
 // JSONPath engine
@@ -60,6 +65,8 @@ private:
   size_t current_depth = 0;
   StructureType current_structure_type;
   std::optional<StructuralCharacter> previous_structural;
+
+  bool current_matched_key_at_depth = false;
 
   // State implementations
   void handle_open_structure(

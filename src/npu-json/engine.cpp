@@ -201,6 +201,16 @@ bool check_key_match(std::string &json, size_t colon_position, std::string &sear
   return match != nullptr;
 }
 
+bool is_closing_structural(char structural) {
+  switch (structural) {
+    case '}':
+    case ']':
+      return true;
+    default:
+      return false;
+  }
+}
+
 void Engine::handle_find_key(
   std::string &json,
   std::string &search_key,
@@ -216,6 +226,15 @@ void Engine::handle_find_key(
   }
 
   auto query_depth = calculate_query_depth();
+
+  // Make sure we didn't come back through an abort when tail-skipping
+  if (current_matched_key_at_depth && initial_structural_character.has_value()) {
+    // If already matched a key and we're not already on the closing structural, we can tail-skip.
+    if (!is_closing_structural(structural_character->c)) {
+      fallback(iterator);
+      return;
+    }
+  }
 
   while (structural_character != nullptr) {
     auto& s = *structural_character;
@@ -246,6 +265,7 @@ void Engine::handle_find_key(
           auto matched = check_key_match(json, s.pos, search_key);
           if (matched) {
             // std::cout << "  advance()" << std::endl;
+            current_matched_key_at_depth = true;
             pass_structural(s);
             advance();
             return;
@@ -407,7 +427,12 @@ void Engine::handle_record_result(
 void Engine::advance() {
   assert(current_instruction_pointer < byte_code->instructions.size());
 
-  stack.emplace(current_instruction_pointer, current_structure_type, current_depth);
+  stack.emplace(
+    current_instruction_pointer,
+    current_structure_type,
+    current_depth,
+    current_matched_key_at_depth
+  );
 
   current_instruction_pointer++;
 }
@@ -463,6 +488,7 @@ void Engine::restore_state_from_stack(StackFrame &frame) {
   current_depth = frame.depth;
   current_structure_type = frame.structure_type;
   current_instruction_pointer = frame.instruction_pointer;
+  current_matched_key_at_depth = frame.matched_key_at_depth;
 }
 
 // Pass a structural character to the next engine state.
