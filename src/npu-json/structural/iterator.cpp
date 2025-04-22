@@ -13,17 +13,20 @@ Iterator::Iterator(std::string &json) : json(json) {
 }
 
 StructuralCharacter* Iterator::get_next_structural_character() {
+  auto& tracer = util::Tracer::get_instance();
+  static util::trace_id automaton_trace;
+
   // For the first chunk we need to load it in first.
-  if (chunk_idx == 0) switch_to_next_chunk();
+  if (chunk_idx == 0) {
+    switch_to_next_chunk();
+    automaton_trace = tracer.start_trace("automaton");
+  }
 
   // Return next structural character in the current chunk if there is one.
   auto possible_structural = structural_index->get_next_structural_character();
   if (possible_structural != nullptr) {
     return possible_structural;
   }
-
-  auto& tracer = util::Tracer::get_instance();
-  static util::trace_id automaton_trace;
 
   // Reached the end of the input, no more structurals to return.
   if (chunk_idx >= json.length()) {
