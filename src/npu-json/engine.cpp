@@ -183,13 +183,13 @@ bool check_key_match(std::string &json, size_t colon_position, std::string &sear
     current_position--;
   }
 
-  if (current_position + 1 < search_key.length()) return false;
+  if (current_position + 2 < search_key.length()) return false;
 
   size_t start_position = current_position - search_key.length();
 
   if (!(json[start_position - 1] == '"' && json[start_position - 2] != '\\')) return false;
 
-  // std::cout << "      " << '"' << std::string(json.c_str() + start_position, search_key.length()) << '"' << std::endl;
+  if (json[start_position] != search_key[0]) return false;
 
   auto match = memmem(
     json.c_str() + start_position,
