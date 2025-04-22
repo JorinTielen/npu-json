@@ -12,7 +12,7 @@ from aie.helpers.dialects.ext.scf import _for as range_
 # Must be kept in sync with the CHUNK_SIZE and BLOCK_SIZE in `src/npu-json/engine.hpp`.
 # The 4 extra bytes are for the carry index
 DATA_BLOCK_SIZE = 1024
-DATA_CHUNK_SIZE = 50 * 1000 * DATA_BLOCK_SIZE
+DATA_CHUNK_SIZE = 4 * 1000 * DATA_BLOCK_SIZE
 
 INDEX_CHUNK_SIZE = DATA_CHUNK_SIZE // 8
 INDEX_BLOCK_SIZE = DATA_BLOCK_SIZE // 8
@@ -22,11 +22,11 @@ CARRY_BLOCK_SIZE = 4
 
 # AI Engine structural design function
 def mlir_aie_design(kernel_obj: str):
-    num_cols = 2
+    num_cols = 4
     num_rows = 4
 
     # Device declaration - aie2 device NPU
-    @device(AIEDevice.npu1_2col)
+    @device(AIEDevice.npu1_4col)
     def device_body():
         data_chunk_ty = np.ndarray[(DATA_CHUNK_SIZE + CARRY_CHUNK_SIZE,), np.dtype[np.uint8]]
         data_block_ty = np.ndarray[(DATA_BLOCK_SIZE + CARRY_BLOCK_SIZE,), np.dtype[np.uint8]]
