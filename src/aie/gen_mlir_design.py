@@ -103,6 +103,8 @@ def mlir_aie_design(kernel_obj: str):
             )
 
         # Compute tile core definitions for running the kernel
+        assert (DATA_CHUNK_SIZE / DATA_BLOCK_SIZE / num_cols / num_rows).is_integer(), \
+            "Data sizes do not evenly divide for splitting across tiles"
         for col in range(0, num_cols):
             for row in range(0, num_rows):
                 @core(core_tiles[row][col], kernel_obj)
