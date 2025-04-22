@@ -92,6 +92,64 @@ void StructuralIndexer::construct_escape_carry_index(const char *chunk,
   tracer.finish_trace(trace);
 }
 
+uint64_t prefix_xor_clmul(const uint64_t bitmask) {
+  __m128i all_ones = _mm_set1_epi8('\xFF');
+  __m128i result = _mm_clmulepi64_si128(_mm_set_epi64x(0ULL, bitmask), all_ones, 0);
+  return _mm_cvtsi128_si64(result);
+}
+
+void construct_string_index_avx512(const char *chunk, uint64_t *index,
+    uint32_t *escape_carries, bool first_string_carry) {
+  static constexpr const uint64_t V = 64;
+  static constexpr const uint64_t ODD_BITS = 0xAAAAAAAAAAAAAAAAULL;
+  static constexpr const uint64_t ALL_ONES = 0xFFFFFFFFFFFFFFFFULL;
+
+  auto& tracer = util::Tracer::get_instance();
+  auto trace = tracer.start_trace("construct_string_index");
+
+  // Static masks containing only quote or escape (backslash) characters
+  const __m512i quotes_mask = _mm512_set1_epi8('"');
+  const __m512i backslash_mask = _mm512_set1_epi8('\\');
+
+  uint64_t prev_in_string = first_string_carry ? ALL_ONES : 0;
+  uint64_t prev_is_escaped = escape_carries[0];
+
+  size_t index_idx = 0;
+
+  for (size_t i = 0; i < Engine::CHUNK_SIZE; i += V) {
+    // Scan for quote and escape characters in input
+    __m512i data = _mm512_loadu_si512(reinterpret_cast<const __m512i *>(&chunk[i]));
+    __mmask64 quotes = _mm512_cmpeq_epu8_mask(data, quotes_mask);
+    __mmask64 backslash = _mm512_cmpeq_epu8_mask(data, backslash_mask);
+
+    // Find odd-length sequences of escape characters (Fig. 3)
+    uint64_t potential_escape = backslash & ~prev_is_escaped;
+    uint64_t maybe_escaped = potential_escape << 1;
+
+    uint64_t maybe_escaped_and_odd_bits     = maybe_escaped | ODD_BITS;
+    uint64_t even_series_codes_and_odd_bits = maybe_escaped_and_odd_bits - potential_escape;
+
+    uint64_t escape_and_terminal_code = even_series_codes_and_odd_bits ^ ODD_BITS;
+    uint64_t escaped = escape_and_terminal_code ^ (backslash | prev_is_escaped);
+    uint64_t escape = escape_and_terminal_code & backslash;
+    prev_is_escaped = escape >> 63;
+
+    // Compute string-index (Fig. 4)
+    uint64_t non_escaped_quotes = quotes & ~escaped;
+    uint64_t string_index = prefix_xor_clmul(non_escaped_quotes);
+
+    // Invert if we were in a string previously
+    string_index = string_index ^ prev_in_string;
+    prev_in_string = static_cast<int64_t>(string_index) >> 63;
+
+    // Store result
+    index[index_idx] = string_index;
+    index_idx++;
+  }
+
+  tracer.finish_trace(trace);
+}
+
 void StructuralIndexer::construct_string_index(const char *chunk, uint64_t *index,
     uint32_t *escape_carries, bool first_string_carry) {
   // If the NPU is not initialized, we will not call a kernel here.
@@ -180,6 +238,8 @@ std::shared_ptr<StructuralIndex> StructuralIndexer::construct_structural_index(
   construct_escape_carry_index(chunk, index->escape_carry_index, first_escape_carry);
   if (npu_initialized) {
     construct_string_index(chunk, index->string_index.data(), index->escape_carry_index.data(), first_string_carry);
+  } else {
+    construct_string_index_avx512(chunk, index->string_index.data(), index->escape_carry_index.data(), first_string_carry);
   }
   construct_structural_character_index(chunk, *index, chunk_idx);
 
