@@ -165,3 +165,44 @@ Fixed these by merging input buffer:
     `advance()` again, either immediately for array or after this ':' again for an object.
 - WildCard + '}' -> Return:
   - We have reached the end of the WildCard object, so we will clean up our own state and lower to the previous.
+
+## Measurements
+
+for 50MB chunks.
+
+escape_carry_index:      315'944ns   -> 158.3 GB/s
+string_index (cpu):      1'912'817ns -> ~26.1 GB/s
+string_index (overhead): 8'988'803ns -> ~5.5  GB/s
+string_index (npu):      3'881'261ns -> ~12.9 GB/s
+structural_index:        3'561'557ns -> ~14.0 GB/s
+automaton:               7'758'391ns -> ~6.4  GB/s
+automaton (random opts): 7'047'851ns -> ~7.1  GB/s
+
+for 1MB chunks.
+
+automaton:               434083ns    -> ~11.5 GB/s
+
+### Ideas to go faster
+
+- NPU
+  - Only copy Quote + Backslash to NPU for string_index
+  - Fastpath if no escapes
+  - Vectorize bitmask operations
+  - Better NPU (clockspeed + more compute tiles)
+- Structural character index
+  - Make `StructuralCharacter` struct a tagged 32-bit integer (padded struct is 128-bits?)
+    - 3 bit tag for character type (6 options): '{', '}', '[', ']', ':', ','
+    - 29 bits for position, this allows for chunks of max. ~500MB.
+    - This should also speed up automaton which needs to fetch all these characters (cpu cache)
+  - Problem: when moving to NPU:
+    - 1/4th of the characters in a block are structural -> fits in input size
+      - According to my statistics this has no overflows on bestbuy and walmart datasets i have
+    - per block check for count, better to do optimistically: return boolean from npu in case of overflow
+    - when overflow, redo that block on CPU with std::vector or something (slow path)
+    - memory is more scattered, when iterating, need to jump from end of current block to next block if hit 0
+- Automaton
+  - Add tail-skip after first quote match
+    - Tried this multiple times, somehow it doesn't give an improvement on benchmarked files
+      - Maybe after cache issue it now does?
+  - Add character type skipper to iterator/structural character index?
+    - Avoids the automaton iterating, but more logic / branch in iterator
