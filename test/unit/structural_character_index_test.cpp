@@ -15,7 +15,7 @@ TEST_CASE("detects structural characters and builds index") {
 
   memcpy(chunk, json.c_str(), json.length());
 
-  auto indexer = std::make_unique<npu::StructuralIndexer>("test.xclbin", "test-insts.txt", false);
+  auto indexer = std::make_unique<npu::StructuralIndexer>(false);
 
   auto structural_index = indexer->construct_structural_index(chunk, false, false, 0);
 
@@ -88,7 +88,7 @@ TEST_CASE("works across block boundaries") {
 
   memcpy(chunk, json.c_str(), json.length());
 
-  auto indexer = std::make_unique<npu::StructuralIndexer>("test.xclbin", "test-insts.txt", false);
+  auto indexer = std::make_unique<npu::StructuralIndexer>(false);
 
   auto structural_index = indexer->construct_structural_index(chunk, false, false, 0);
 

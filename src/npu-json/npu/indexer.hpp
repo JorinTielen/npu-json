@@ -33,16 +33,22 @@ public:
 // Class used to build the indices required to provide a stream of structural
 // characters to the JSONPath engine.
 class StructuralIndexer {
-  xrt::kernel kernel;
+  xrt::kernel string_index_kernel;
+  xrt::kernel structural_character_index_kernel;
 
-  xrt::bo bo_instr;
-  xrt::bo bo_in;
-  xrt::bo bo_out;
-  size_t instr_size;
+  xrt::bo bo_instr1;
+  xrt::bo bo_in1;
+  xrt::bo bo_out1;
+  size_t instr1_size;
+
+  xrt::bo bo_instr2;
+  xrt::bo bo_in2;
+  xrt::bo bo_out2;
+  size_t instr2_size;
 
   bool npu_initialized = false;
 public:
-  StructuralIndexer(std::string xclbin_path, std::string insts_path, bool initialize_npu);
+  StructuralIndexer(bool initialize_npu);
   std::shared_ptr<StructuralIndex> construct_structural_index(const char *chunk, bool, bool, size_t);
 private:
   void construct_escape_carry_index(const char *chunk, std::array<uint32_t, CARRY_INDEX_SIZE> &index, bool);

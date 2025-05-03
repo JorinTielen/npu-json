@@ -10,14 +10,12 @@
 
 namespace util {
 
-inline std::pair<xrt::device, xrt::kernel> init_npu(std::string xclbin_name) {
+inline std::pair<xrt::device, xrt::hw_context> init_npu(xrt::xclbin xclbin) {
   unsigned int device_index = 0;
   auto device = xrt::device(device_index);
-  auto xclbin = xrt::xclbin(xclbin_name);
   device.register_xclbin(xclbin);
   xrt::hw_context context(device, xclbin.get_uuid());
-  auto kernel = xrt::kernel(context, "MLIR_AIE");
-  return std::make_pair(device, kernel);
+  return std::make_pair(device, context);
 }
 
 inline std::vector<uint32_t> load_instr_sequence(std::string instr_path) {

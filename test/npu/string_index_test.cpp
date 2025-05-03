@@ -95,7 +95,7 @@ int main(int argc, const char *argv[]) {
 
   auto global_status = 0;
 
-  auto indexer = std::make_shared<npu::StructuralIndexer>(argv[1], argv[2], true);
+  auto indexer = std::make_shared<npu::StructuralIndexer>(true);
 
   auto status_test_string_index = test_string_index("basic", indexer);
   print_test_results("basic", status_test_string_index);

@@ -3,12 +3,11 @@
 
 #include <npu-json/structural/iterator.hpp>
 #include <npu-json/util/tracer.hpp>
-#include <npu-json/options.hpp>
 
 namespace structural {
 
 Iterator::Iterator(std::string &json) : json(json) {
-  indexer = std::make_unique<npu::StructuralIndexer>(XCLBIN_PATH, INSTS_PATH, true);
+  indexer = std::make_unique<npu::StructuralIndexer>(true);
   chunk = std::make_unique<std::array<uint8_t, Engine::CHUNK_SIZE>>();
 }
 

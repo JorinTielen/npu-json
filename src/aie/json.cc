@@ -14,7 +14,35 @@ __attribute__((inline)) uint64_t prefix_xor(uint64_t bitmask) {
     return bitmask;
 }
 
-void stringindexer_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict index_buffer, const int32_t n) {
+__attribute__((inline)) uint64_t trailing_zeroes(uint64_t n) {
+  // return aie::(bitmask);
+  int zeros = 0;
+  if((n % 100000000) == 0)
+  {
+      zeros += 8;
+      n /= 100000000;
+  }
+  if((n % 10000) == 0)
+  {
+      zeros += 4;
+      n /= 10000;
+  }
+  if((n % 100) == 0)
+  {
+      zeros += 2;
+      n /= 100;
+  }
+  if((n % 10) == 0)
+  {
+      zeros++;
+  }
+  return zeros;
+  // return __builtin_ctzll(bitmask);
+}
+
+// TODO: Refactor to use structs and std::array for input/output buffers instead of byte pointers.
+
+void string_index_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict index_buffer, const int32_t n) {
   uint32_t *__restrict carry_ptr = (uint32_t *)(in_buffer + n);
   v64uint8 *__restrict in_ptr = (v64uint8 *)in_buffer;
 
@@ -61,10 +89,71 @@ void stringindexer_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict index
   }
 }
 
+void structural_character_index_aie(
+  uint8_t *__restrict in_buffer,
+  uint64_t *__restrict index_buffer,
+  const int32_t n
+) {
+  static constexpr unsigned int V = 64;
+
+  // We pass the string index as second parameter through the same buffer as
+  // the data to avoid NPU limitations (mem-tile channels).
+  uint64_t *__restrict string_index_ptr = (uint64_t *)(in_buffer + n);
+  // v64uint8 *__restrict data_ptr = (v64uint8 *)in_buffer;
+  uint8_t *__restrict data_ptr = (uint8_t *)in_buffer;
+
+  const aie::vector<uint8_t, V> brace_open_mask = aie::broadcast<uint8_t, V>('{');
+  const aie::vector<uint8_t, V> brace_close_mask = aie::broadcast<uint8_t, V>('}');
+
+  const aie::vector<uint8_t, V> bracket_open_mask = aie::broadcast<uint8_t, V>('[');
+  const aie::vector<uint8_t, V> bracket_close_mask = aie::broadcast<uint8_t, V>(']');
+
+  const aie::vector<uint8_t, V> colon_mask = aie::broadcast<uint8_t, V>(':');
+  const aie::vector<uint8_t, V> comma_mask = aie::broadcast<uint8_t, V>(',');
+
+  for (size_t i = 0; i < n; i += V) {
+    const aie::vector<uint8_t, V> data = aie::load_v<V>(data_ptr);
+    data_ptr += V;
+
+    const uint64_t string_index = *string_index_ptr++;
+
+    auto brace_open = aie::eq(data, brace_open_mask).to_uint64();
+    auto brace_close = aie::eq(data, brace_close_mask).to_uint64();
+    uint64_t braces = brace_open | brace_close;
+
+    auto bracket_open = aie::eq(data, bracket_open_mask).to_uint64();
+    auto bracket_close = aie::eq(data, bracket_close_mask).to_uint64();
+    uint64_t brackets = bracket_open | bracket_close;
+
+    auto colon = aie::eq(data, colon_mask).to_uint64();
+    auto comma = aie::eq(data, comma_mask).to_uint64();
+    uint64_t colons_and_commas = colon | comma;
+
+    uint64_t structurals = braces | brackets | colons_and_commas;
+    uint64_t nonquoted_structurals = structurals & ~string_index;
+
+    *index_buffer++ = nonquoted_structurals;
+    // size_t j = 0;
+    // while (nonquoted_structurals) {
+    //   // auto structural_idx = (i * V) + trailing_zeroes(nonquoted_structurals);
+    //   auto structural_idx = i + j;
+    //   *index_buffer++ = structural_idx;
+    //   j++;
+
+    //   // Remove structural we just processed from the mask
+    //   nonquoted_structurals = nonquoted_structurals & (nonquoted_structurals - 1);
+    // }
+  }
+}
+
 extern "C" {
 
-void stringindexer(uint8_t *in_buffer, uint64_t *index_buffer, int32_t n) {
-  stringindexer_aie(in_buffer, index_buffer, n);
+void string_index(uint8_t *in_buffer, uint64_t *index_buffer, int32_t n) {
+  string_index_aie(in_buffer, index_buffer, n);
+}
+
+void structural_character_index(uint8_t *in_buffer, uint64_t *index_buffer, int32_t n) {
+  structural_character_index_aie(in_buffer, index_buffer, n);
 }
 
 }
