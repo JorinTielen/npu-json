@@ -7,7 +7,7 @@ namespace npu {
 // Class managing the XRT runtime of the JSON indexing NPU kernel.
 class Kernel {
 public:
-  Kernel();
+  Kernel(std::string &json);
 
   Kernel(const Kernel&) = delete;
   Kernel& operator=(const Kernel&) = delete;

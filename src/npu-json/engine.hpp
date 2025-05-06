@@ -49,9 +49,9 @@ class Engine {
 public:
   // Must be kept in sync with the DATA_CHUNK_SIZE AND DATA_BLOCK_SIZE in `src/aie/gen_mlir_design.py`.
   static constexpr size_t BLOCK_SIZE = 1024;
-  static constexpr size_t CHUNK_SIZE = 64 * 1000 * BLOCK_SIZE;
+  static constexpr size_t CHUNK_SIZE = 128 * 1000 * BLOCK_SIZE;
 
-  Engine(jsonpath::Query &query);
+  Engine(jsonpath::Query &query, std::string &json);
   ~Engine();
 
   std::shared_ptr<ResultSet> run_query_on(const std::string *const json);

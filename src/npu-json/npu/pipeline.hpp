@@ -20,7 +20,7 @@ using ChunkIndexQueue = Queue<ChunkIndex, QUEUE_DEPTH>;
 // allowing for pipelined execution with the JSONPath automaton running on the CPU.
 class PipelinedIterator {
 public:
-  PipelinedIterator();
+  PipelinedIterator(std::string &json);
 
   void setup(const std::string *const json);
   void reset();

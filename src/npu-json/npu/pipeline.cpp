@@ -18,9 +18,9 @@ static void run_indexer(
   }
 }
 
-PipelinedIterator::PipelinedIterator()
+PipelinedIterator::PipelinedIterator(std::string &json)
   : index_queue(std::make_unique<ChunkIndexQueue>())
-  , kernel(std::make_unique<Kernel>()) {}
+  , kernel(std::make_unique<Kernel>(json)) {}
 
 void PipelinedIterator::setup(const std::string *const json) {
   this->json = json;
@@ -79,7 +79,9 @@ StructuralCharacter* PipelinedIterator::get_next_structural_character() {
 
   // Return structural from next chunk.
   auto next_potential_structural = get_next_structural_character_in_chunk();
-  assert(next_potential_structural->c == json->at(next_potential_structural->pos));
+  if (next_potential_structural != nullptr) {
+    assert(next_potential_structural->c == json->at(next_potential_structural->pos));
+  }
   return next_potential_structural;
 }
 

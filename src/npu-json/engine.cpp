@@ -13,12 +13,12 @@
 
 #include <npu-json/engine.hpp>
 
-Engine::Engine(jsonpath::Query &query) {
+Engine::Engine(jsonpath::Query &query, std::string &json) {
   byte_code = std::make_unique<jsonpath::ByteCode>();
   byte_code->compile_from_query(query);
   stack = std::stack<StackFrame>();
 
-  iterator = std::make_unique<npu::PipelinedIterator>();
+  iterator = std::make_unique<npu::PipelinedIterator>(json);
 }
 
 Engine::~Engine() {}

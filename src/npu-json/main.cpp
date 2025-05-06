@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
     }
   };
 
-  auto engine = Engine(*query);
+  auto engine = Engine(*query, data);
 
   if (bench) {
     run_bench(data, engine);

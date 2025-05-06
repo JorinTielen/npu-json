@@ -9,7 +9,7 @@
 
 namespace npu {
 
-Kernel::Kernel() {
+Kernel::Kernel(std::string &json) {
   // Initialize NPU
   auto xclbin = xrt::xclbin(XCLBIN_PATH);
   auto [device, context] = util::init_npu(xclbin);
@@ -38,7 +38,8 @@ Kernel::Kernel() {
                                 string_index.kernel.group_id(4));
 
   // Setup input/output buffers (structural character)
-  size_t input_buffer_size_structural = Engine::CHUNK_SIZE + CHUNK_BIT_INDEX_SIZE;
+  // We allocate a buffer for the entire JSON and use "sub-buffers" for each chunk kernel call.
+  size_t input_buffer_size_structural = (json.length() + Engine::CHUNK_SIZE - 1) / Engine::CHUNK_SIZE * Engine::CHUNK_SIZE;
   structural_index.input  = xrt::bo(device, input_buffer_size_structural, XRT_BO_FLAGS_HOST_ONLY,
                                     structural_index.kernel.group_id(3));
   structural_index.output = xrt::bo(device, CHUNK_BIT_INDEX_SIZE, XRT_BO_FLAGS_HOST_ONLY,
@@ -51,6 +52,10 @@ Kernel::Kernel() {
   memcpy(structural_index.instr.map<void *>(), structural_index_instr_v.data(),
          structural_index.instr_size * sizeof(uint32_t));
   structural_index.instr.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+  // Copy JSON to input buffer
+  memcpy(structural_index.input.map<uint8_t *>(), json.c_str(), json.length());
+  memset(structural_index.input.map<uint8_t *>() + json.length(), ' ', input_buffer_size_structural - json.length());
 
   // Zero out output buffers
   memset(string_index.output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
@@ -83,7 +88,7 @@ void Kernel::StringIndex::call(const char * chunk, ChunkIndex &index, bool first
   auto run = kernel(3, instr, instr_size, input, output);
   run.wait();
 
-  output.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
 
   auto output_buf = output.map<uint64_t *>();
 
@@ -106,24 +111,15 @@ inline uint64_t trailing_zeroes(uint64_t mask) {
 }
 
 void Kernel::StructuralIndexBuffers::call(const char *chunk, ChunkIndex &index, size_t chunk_idx) {
-  auto input_buf = input.map<uint8_t *>();
+  // Use sub-buffer for input
+  auto sub_input = xrt::bo(input, Engine::CHUNK_SIZE, chunk_idx);
 
-  // Copy input into buffer
-  auto blocks_in_chunk_count = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
-  for (size_t block = 0; block < blocks_in_chunk_count; block++) {
-    // Each block has string_index after input
-    auto idx = block * (Engine::BLOCK_SIZE + (Engine::BLOCK_SIZE / 8));
-    memcpy(&input_buf[idx], &chunk[block * Engine::BLOCK_SIZE], Engine::BLOCK_SIZE);
-    auto dst = &index.string_index.data()[block * (Engine::BLOCK_SIZE / 64)];
-    memcpy(&input_buf[idx + Engine::BLOCK_SIZE], dst, Engine::BLOCK_SIZE / 8);
-  }
+  sub_input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-  input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-  auto run = kernel(3, instr, instr_size, input, output);
+  auto run = kernel(3, instr, instr_size, sub_input, output);
   run.wait();
 
-  output.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
 
   auto output_buf = output.map<uint8_t *>();
 
@@ -133,6 +129,8 @@ void Kernel::StructuralIndexBuffers::call(const char *chunk, ChunkIndex &index, 
   constexpr const size_t N = 64;
   for (size_t i = 0; i < CHUNK_BIT_INDEX_SIZE / 8; i++) {
     auto nonquoted_structural = reinterpret_cast<uint64_t *>(output_buf)[i];
+
+    nonquoted_structural = nonquoted_structural & ~index.string_index[i];
 
     while (nonquoted_structural) {
       auto structural_idx = (i * N) + trailing_zeroes(nonquoted_structural);

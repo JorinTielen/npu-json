@@ -96,9 +96,6 @@ void structural_character_index_aie(
 ) {
   static constexpr unsigned int V = 64;
 
-  // We pass the string index as second parameter through the same buffer as
-  // the data to avoid NPU limitations (mem-tile channels).
-  uint64_t *__restrict string_index_ptr = (uint64_t *)(in_buffer + n);
   // v64uint8 *__restrict data_ptr = (v64uint8 *)in_buffer;
   uint8_t *__restrict data_ptr = (uint8_t *)in_buffer;
 
@@ -115,8 +112,6 @@ void structural_character_index_aie(
     const aie::vector<uint8_t, V> data = aie::load_v<V>(data_ptr);
     data_ptr += V;
 
-    const uint64_t string_index = *string_index_ptr++;
-
     auto brace_open = aie::eq(data, brace_open_mask).to_uint64();
     auto brace_close = aie::eq(data, brace_close_mask).to_uint64();
     uint64_t braces = brace_open | brace_close;
@@ -130,19 +125,8 @@ void structural_character_index_aie(
     uint64_t colons_and_commas = colon | comma;
 
     uint64_t structurals = braces | brackets | colons_and_commas;
-    uint64_t nonquoted_structurals = structurals & ~string_index;
 
-    *index_buffer++ = nonquoted_structurals;
-    // size_t j = 0;
-    // while (nonquoted_structurals) {
-    //   // auto structural_idx = (i * V) + trailing_zeroes(nonquoted_structurals);
-    //   auto structural_idx = i + j;
-    //   *index_buffer++ = structural_idx;
-    //   j++;
-
-    //   // Remove structural we just processed from the mask
-    //   nonquoted_structurals = nonquoted_structurals & (nonquoted_structurals - 1);
-    // }
+    *index_buffer++ = structurals;
   }
 }
 

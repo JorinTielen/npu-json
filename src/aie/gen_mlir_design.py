@@ -18,7 +18,7 @@ KERNELS = [
 
 # Must be kept in sync with the CHUNK_SIZE and BLOCK_SIZE in `src/npu-json/engine.hpp`.
 # The 4 extra bytes are for the carry index
-BLOCKS_PER_CHUNK = 64 * 1000
+BLOCKS_PER_CHUNK = 128 * 1000
 DATA_BLOCK_SIZE = 1024
 DATA_CHUNK_SIZE = BLOCKS_PER_CHUNK * DATA_BLOCK_SIZE
 
@@ -27,11 +27,6 @@ INDEX_BLOCK_SIZE = DATA_BLOCK_SIZE // 8
 
 CARRY_CHUNK_SIZE = DATA_CHUNK_SIZE // DATA_BLOCK_SIZE * 4
 CARRY_BLOCK_SIZE = 4
-
-# We assume 1/4th of chars are structural at 32-bits per structural character for the NPU fast-path for now.
-# TODO: Add overflow bool at end
-STRUCTURAL_CHARACTER_CHUNK_SIZE = INDEX_CHUNK_SIZE
-STRUCTURAL_CHARACTER_BLOCK_SIZE = INDEX_BLOCK_SIZE
 
 # AI Engine structural design function
 def string_index_design(kernel_obj: str):
@@ -118,6 +113,8 @@ def string_index_design(kernel_obj: str):
         # Compute tile core definitions for running the kernel
         assert (DATA_CHUNK_SIZE / DATA_BLOCK_SIZE / num_cols / num_rows).is_integer(), \
             "Data sizes do not evenly divide for splitting across tiles"
+        assert (INDEX_CHUNK_SIZE / INDEX_BLOCK_SIZE / num_cols / num_rows).is_integer(), \
+            "Index sizes do not evenly divide for splitting across tiles"
         for col in range(0, num_cols):
             for row in range(0, num_rows):
                 @core(core_tiles[row][col], kernel_obj)
@@ -165,12 +162,12 @@ def structural_character_index_design(kernel_obj: str):
     # Device declaration - aie2 device NPU
     @device(AIEDevice.npu1_4col)
     def device_body():
-        data_chunk_ty = np.ndarray[(DATA_CHUNK_SIZE + INDEX_CHUNK_SIZE,), np.dtype[np.uint8]]
-        data_block_ty = np.ndarray[(DATA_BLOCK_SIZE + INDEX_BLOCK_SIZE,), np.dtype[np.uint8]]
-        data_split_ty = np.ndarray[((DATA_BLOCK_SIZE + INDEX_BLOCK_SIZE) * num_rows,), np.dtype[np.uint8]]
-        structural_character_chunk_ty = np.ndarray[(STRUCTURAL_CHARACTER_CHUNK_SIZE,), np.dtype[np.uint8]]
-        structural_character_block_ty = np.ndarray[(STRUCTURAL_CHARACTER_BLOCK_SIZE,), np.dtype[np.uint8]]
-        structural_character_split_ty = np.ndarray[(STRUCTURAL_CHARACTER_BLOCK_SIZE * num_rows,), np.dtype[np.uint8]]
+        data_chunk_ty = np.ndarray[(DATA_CHUNK_SIZE,), np.dtype[np.uint8]]
+        data_block_ty = np.ndarray[(DATA_BLOCK_SIZE,), np.dtype[np.uint8]]
+        data_split_ty = np.ndarray[((DATA_BLOCK_SIZE) * num_rows,), np.dtype[np.uint8]]
+        index_chunk_ty = np.ndarray[(INDEX_CHUNK_SIZE,), np.dtype[np.uint8]]
+        index_block_ty = np.ndarray[(INDEX_BLOCK_SIZE,), np.dtype[np.uint8]]
+        index_split_ty = np.ndarray[(INDEX_BLOCK_SIZE * num_rows,), np.dtype[np.uint8]]
 
         tiles = [
             [tile(col, row) for col in range(0, num_cols)] for row in range(0, num_rows + 2)
@@ -180,7 +177,7 @@ def structural_character_index_design(kernel_obj: str):
         core_tiles = tiles[2:]
 
         kernel = external_func(
-            "structural_character_index", inputs=[data_block_ty, structural_character_block_ty, np.int32]
+            "structural_character_index", inputs=[data_block_ty, index_block_ty, np.int32]
         )
 
         # Setup FIFOs for input data
@@ -208,7 +205,7 @@ def structural_character_index_design(kernel_obj: str):
                 shim_fifos_in[col],
                 [core_fifos_in[row][col] for row in range(0, num_rows)],
                 [],
-                [i * (DATA_BLOCK_SIZE + INDEX_BLOCK_SIZE) for i in range(0, num_rows)],
+                [i * (DATA_BLOCK_SIZE) for i in range(0, num_rows)],
             )
 
         # Setup FIFOs for output index
@@ -222,7 +219,7 @@ def structural_character_index_design(kernel_obj: str):
                 mem_tiles[col],
                 shim_tiles[col],
                 2,
-                structural_character_split_ty
+                index_split_ty
             )
             for row in range(0, num_rows):
                 core_fifos_out[row][col] = object_fifo(
@@ -230,20 +227,20 @@ def structural_character_index_design(kernel_obj: str):
                     core_tiles[row][col],
                     mem_tiles[col],
                     2,
-                    structural_character_block_ty
+                    index_block_ty
                 )
             object_fifo_link(
                 [core_fifos_out[row][col] for row in range(0, num_rows)],
                 shim_fifos_out[col],
-                [i * (STRUCTURAL_CHARACTER_BLOCK_SIZE) for i in range(0, num_rows)],
+                [i * (INDEX_BLOCK_SIZE) for i in range(0, num_rows)],
                 []
             )
 
         # Compute tile core definitions for running the kernel
         assert (DATA_CHUNK_SIZE / DATA_BLOCK_SIZE / num_cols / num_rows).is_integer(), \
             "Data sizes do not evenly divide for splitting across tiles"
-        assert (STRUCTURAL_CHARACTER_CHUNK_SIZE / STRUCTURAL_CHARACTER_BLOCK_SIZE / num_cols / num_rows).is_integer(), \
-            "Structural character index sizes do not evenly divide for splitting across tiles"
+        assert (INDEX_CHUNK_SIZE / INDEX_BLOCK_SIZE / num_cols / num_rows).is_integer(), \
+            "Index sizes do not evenly divide for splitting across tiles"
         for col in range(0, num_cols):
             for row in range(0, num_rows):
                 @core(core_tiles[row][col], kernel_obj)
@@ -260,25 +257,24 @@ def structural_character_index_design(kernel_obj: str):
                             of_out.release(ObjectFifoPort.Produce, 1)
 
         # Host side data-flow movement
-        @runtime_sequence(data_chunk_ty, structural_character_chunk_ty)
+        @runtime_sequence(data_chunk_ty, index_chunk_ty)
         def sequence(a, b):
             for col in range(0, num_cols):
-                input_chunk_size = DATA_CHUNK_SIZE + INDEX_CHUNK_SIZE
                 npu_dma_memcpy_nd(
                     metadata=shim_fifos_in[col],
                     bd_id=col * 2,
                     mem=a,
-                    sizes=[1, 1, 1, input_chunk_size // num_cols],
-                    offsets=[0, 0, 0, (input_chunk_size // num_cols) * col],
-                    # issue_token=True
+                    sizes=[1, 1, 1, DATA_CHUNK_SIZE // num_cols],
+                    offsets=[0, 0, 0, (DATA_CHUNK_SIZE // num_cols) * col],
+                    issue_token=True
                 )
                 npu_dma_memcpy_nd(
                     metadata=shim_fifos_out[col],
                     bd_id=col * 2 + 1,
                     mem=b,
-                    sizes=[1, 1, 1, STRUCTURAL_CHARACTER_CHUNK_SIZE // num_cols],
-                    offsets=[0, 0, 0, (STRUCTURAL_CHARACTER_CHUNK_SIZE // num_cols) * col],
-                    # issue_token=True
+                    sizes=[1, 1, 1, INDEX_CHUNK_SIZE // num_cols],
+                    offsets=[0, 0, 0, (INDEX_CHUNK_SIZE // num_cols) * col],
+                    issue_token=True
                 )
             dma_wait(*shim_fifos_out)
 
