@@ -7,6 +7,8 @@
 namespace util {
 
 trace_id util::Tracer::start_trace(std::string task) {
+  std::lock_guard<std::mutex> guard(tracer_mutex);
+
   auto start = std::chrono::high_resolution_clock::now();
   auto epoch = start.time_since_epoch().count();
   auto start_ns = std::chrono::duration<uint64_t, std::nano>(epoch);
@@ -15,6 +17,8 @@ trace_id util::Tracer::start_trace(std::string task) {
 }
 
 void Tracer::finish_trace(trace_id id) {
+  std::lock_guard<std::mutex> guard(tracer_mutex);
+
   auto& trace = traces[id];
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -24,6 +28,8 @@ void Tracer::finish_trace(trace_id id) {
 }
 
 void Tracer::export_traces(const std::string &file_name) {
+  std::lock_guard<std::mutex> guard(tracer_mutex);
+
   std::ofstream output(file_name);
 
   output << "task,start_ns,duration_ns" << std::endl;

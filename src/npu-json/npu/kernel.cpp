@@ -3,6 +3,7 @@
 
 #include <npu-json/npu/chunk-index.hpp>
 #include <npu-json/util/debug.hpp>
+#include <npu-json/util/tracer.hpp>
 #include <npu-json/engine.hpp>
 #include <npu-json/options.hpp>
 
@@ -85,10 +86,13 @@ void build_character_index(const char *block, uint64_t *index, size_t n) {
 }
 
 void Kernel::StringIndex::call(const char * chunk, ChunkIndex &index, bool first_string_carry) {
-  auto input_buf = input.map<uint8_t *>();
+  auto& tracer = util::Tracer::get_instance();
+  auto trace = tracer.start_trace("construct_string_index");
 
   constexpr const auto vectors_in_block = Engine::BLOCK_SIZE / 64;
   constexpr const auto INDEX_BLOCK_SIZE = Engine::BLOCK_SIZE / 8;
+
+  auto input_buf = input.map<uint8_t *>();
 
   // Copy input into buffer
   auto blocks_in_chunk_count = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
@@ -103,11 +107,14 @@ void Kernel::StringIndex::call(const char * chunk, ChunkIndex &index, bool first
     *buf_in_carry = index.escape_carry_index[block];
   }
 
-
   input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+  auto trace_npu = tracer.start_trace("construct_string_index_npu");
 
   auto run = kernel(3, instr, instr_size, input, output);
   run.wait();
+
+  tracer.finish_trace(trace_npu);
 
   output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
 
@@ -124,6 +131,8 @@ void Kernel::StringIndex::call(const char * chunk, ChunkIndex &index, bool first
     auto last_vector = index.string_index[(block + 1) * vectors_in_block - 1];
     last_block_inside_string = static_cast<int64_t>(last_vector) >> 63;
   }
+
+  tracer.finish_trace(trace);
 }
 
 inline uint64_t trailing_zeroes(uint64_t mask) {
@@ -131,8 +140,13 @@ inline uint64_t trailing_zeroes(uint64_t mask) {
 }
 
 void Kernel::StructuralIndexBuffers::call(const char *chunk, ChunkIndex &index, size_t chunk_idx) {
+  auto& tracer = util::Tracer::get_instance();
+  auto trace = tracer.start_trace("construct_structural_index");
+
   // Use sub-buffer for input
   auto sub_input = xrt::bo(input, Engine::CHUNK_SIZE, chunk_idx);
+
+  auto trace_npu = tracer.start_trace("construct_structural_index_npu");
 
   sub_input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
@@ -140,6 +154,8 @@ void Kernel::StructuralIndexBuffers::call(const char *chunk, ChunkIndex &index, 
   run.wait();
 
   output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+
+  tracer.finish_trace(trace_npu);
 
   auto output_buf = output.map<uint8_t *>();
 
@@ -159,6 +175,8 @@ void Kernel::StructuralIndexBuffers::call(const char *chunk, ChunkIndex &index, 
       nonquoted_structural = nonquoted_structural & (nonquoted_structural - 1);
     }
   }
+
+  tracer.finish_trace(trace);
 }
 
 } // namespace npu

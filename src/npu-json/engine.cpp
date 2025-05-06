@@ -90,6 +90,9 @@ std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
     }
   }
 
+  // For finishing the last automaton trace.
+  iterator->get_next_structural_character();
+
   iterator->reset();
 
   return result_set;

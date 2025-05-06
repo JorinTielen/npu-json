@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <mutex>
 
 namespace util {
 
@@ -33,6 +34,8 @@ private:
   Tracer() {}
 
   std::vector<Trace> traces;
+
+  std::mutex tracer_mutex;
 public:
   Tracer(Tracer const&)          = delete;
   void operator=(Tracer const&)  = delete;

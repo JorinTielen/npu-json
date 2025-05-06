@@ -2,6 +2,7 @@
 
 #include <npu-json/npu/pipeline.hpp>
 #include <npu-json/util/debug.hpp>
+#include <npu-json/util/tracer.hpp>
 
 namespace npu {
 
@@ -47,13 +48,22 @@ void PipelinedIterator::reset() {
 }
 
 bool PipelinedIterator::switch_to_next_chunk() {
-  if (index != nullptr) index_queue->release_token(index);
+  auto& tracer = util::Tracer::get_instance();
+  static util::trace_id automaton_trace;
+
+  if (index != nullptr) {
+    index_queue->release_token(index);
+    // Finish the trace if there is one.
+    if (automaton_trace) tracer.finish_trace(automaton_trace);
+  }
 
   index = nullptr;
 
   if (chunk_idx >= json->length()) return false;
 
   index = index_queue->claim_read_token();
+
+  automaton_trace = tracer.start_trace("automaton");
 
   chunk_idx += Engine::CHUNK_SIZE;
   current_pos_in_chunk = 0;
@@ -96,6 +106,9 @@ StructuralCharacter* PipelinedIterator::get_next_structural_character_in_chunk()
 }
 
 void PipelinedIndexer::construct_escape_carry_index(const char *chunk, ChunkIndex &index) {
+  auto& tracer = util::Tracer::get_instance();
+  auto trace = tracer.start_trace("construct_escape_carry_index");
+
   index.escape_carry_index[0] = chunk_carry_escape;
   for (size_t i = 1; i <= Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; i++) {
     auto is_escape_char = chunk[i * Engine::BLOCK_SIZE - 1] == '\\';
@@ -112,6 +125,8 @@ void PipelinedIndexer::construct_escape_carry_index(const char *chunk, ChunkInde
 
     index.escape_carry_index[i] = is_escape_char;
   }
+
+  tracer.finish_trace(trace);
 }
 
 static std::array<char, Engine::CHUNK_SIZE> backup_chunk;
