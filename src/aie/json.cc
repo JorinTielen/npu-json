@@ -43,26 +43,23 @@ __attribute__((inline)) uint64_t trailing_zeroes(uint64_t n) {
 // TODO: Refactor to use structs and std::array for input/output buffers instead of byte pointers.
 
 void string_index_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict index_buffer, const int32_t n) {
-  uint32_t *__restrict carry_ptr = (uint32_t *)(in_buffer + n);
-  v64uint8 *__restrict in_ptr = (v64uint8 *)in_buffer;
+  const size_t index_size = n / 8;
+  uint64_t *__restrict quotes_ptr = (uint64_t *)in_buffer;
+  uint64_t *__restrict backslash_ptr = (uint64_t *)(in_buffer + index_size);
+  uint32_t *__restrict carry_ptr = (uint32_t *)(in_buffer + index_size * 2);
 
   static constexpr unsigned int V = 64;
 
   static constexpr const uint64_t ODD_BITS = 0xAAAAAAAAAAAAAAAAULL;
-
-  const v64uint8 quote_mask = broadcast_to_v64uint8('"');
-  const v64uint8 backslash_mask = broadcast_to_v64uint8('\\');
 
   uint64_t prev_in_string = 0;
   uint64_t prev_is_escaped = uint64_t(*carry_ptr);
 
   for (unsigned int i = 0; i < n; i += V)
       chess_prepare_for_pipelining chess_loop_range(16,) {
-    v64uint8 data = *in_ptr++;
-
     // Scan for quote and escape characters in input
-    uint64_t quotes = eq(data, quote_mask);
-    uint64_t backslash = eq(data, backslash_mask);
+    uint64_t quotes = *quotes_ptr++;
+    uint64_t backslash = *backslash_ptr++;
 
     // Find odd-length sequences of escape characters (Fig. 3)
     uint64_t potential_escape = backslash & ~prev_is_escaped;

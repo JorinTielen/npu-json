@@ -36,9 +36,9 @@ def string_index_design(kernel_obj: str):
     # Device declaration - aie2 device NPU
     @device(AIEDevice.npu1_4col)
     def device_body():
-        data_chunk_ty = np.ndarray[(DATA_CHUNK_SIZE + CARRY_CHUNK_SIZE,), np.dtype[np.uint8]]
-        data_block_ty = np.ndarray[(DATA_BLOCK_SIZE + CARRY_BLOCK_SIZE,), np.dtype[np.uint8]]
-        data_split_ty = np.ndarray[((DATA_BLOCK_SIZE + CARRY_BLOCK_SIZE) * num_rows,), np.dtype[np.uint8]]
+        data_chunk_ty = np.ndarray[(INDEX_CHUNK_SIZE * 2 + CARRY_CHUNK_SIZE,), np.dtype[np.uint8]]
+        data_block_ty = np.ndarray[(INDEX_BLOCK_SIZE * 2 + CARRY_BLOCK_SIZE,), np.dtype[np.uint8]]
+        data_split_ty = np.ndarray[((INDEX_BLOCK_SIZE * 2 + CARRY_BLOCK_SIZE) * num_rows,), np.dtype[np.uint8]]
         index_chunk_ty = np.ndarray[(INDEX_CHUNK_SIZE,), np.dtype[np.uint8]]
         index_block_ty = np.ndarray[(INDEX_BLOCK_SIZE,), np.dtype[np.uint8]]
         index_split_ty = np.ndarray[(INDEX_BLOCK_SIZE * num_rows,), np.dtype[np.uint8]]
@@ -79,7 +79,7 @@ def string_index_design(kernel_obj: str):
                 shim_fifos_in[col],
                 [core_fifos_in[row][col] for row in range(0, num_rows)],
                 [],
-                [i * (DATA_BLOCK_SIZE + CARRY_BLOCK_SIZE) for i in range(0, num_rows)],
+                [i * (INDEX_BLOCK_SIZE * 2 + CARRY_BLOCK_SIZE) for i in range(0, num_rows)],
             )
 
         # Setup FIFOs for output index
@@ -134,7 +134,7 @@ def string_index_design(kernel_obj: str):
         @runtime_sequence(data_chunk_ty, index_chunk_ty)
         def sequence(a, b):
             for col in range(0, num_cols):
-                input_chunk_size = DATA_CHUNK_SIZE + CARRY_CHUNK_SIZE
+                input_chunk_size = INDEX_CHUNK_SIZE * 2 + CARRY_CHUNK_SIZE
                 npu_dma_memcpy_nd(
                     metadata=shim_fifos_in[col],
                     bd_id=col * 2,

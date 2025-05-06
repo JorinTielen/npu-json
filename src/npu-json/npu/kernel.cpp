@@ -1,4 +1,5 @@
 #include <cstring>
+#include <immintrin.h>
 
 #include <npu-json/npu/chunk-index.hpp>
 #include <npu-json/util/debug.hpp>
@@ -31,7 +32,7 @@ Kernel::Kernel(std::string &json) {
                                    XCL_BO_FLAGS_CACHEABLE, structural_index.kernel.group_id(1));
 
   // Setup input/output buffers (string)
-  size_t input_buffer_size_string = Engine::CHUNK_SIZE + 4 * CHUNK_CARRY_INDEX_SIZE;
+  size_t input_buffer_size_string = CHUNK_BIT_INDEX_SIZE * 2 + 4 * CHUNK_CARRY_INDEX_SIZE;
   string_index.input  = xrt::bo(device, input_buffer_size_string, XRT_BO_FLAGS_HOST_ONLY,
                                 string_index.kernel.group_id(3));
   string_index.output = xrt::bo(device, CHUNK_BIT_INDEX_SIZE, XRT_BO_FLAGS_HOST_ONLY,
@@ -70,18 +71,38 @@ void Kernel::call(const char * chunk, ChunkIndex &index, bool first_string_carry
   structural_index.call(chunk, index, chunk_idx);
 }
 
+template<char C>
+void build_character_index(const char *block, uint64_t *index, size_t n) {
+  constexpr const size_t N = 64;
+
+  const __m512i mask = _mm512_set1_epi8(C);
+
+  for (size_t i = 0; i < n; i += N) {
+    auto addr = reinterpret_cast<const __m512i *>(&block[i]);
+    __m512i data = _mm512_loadu_si512(addr);
+    *index++ = _mm512_cmpeq_epu8_mask(data, mask);;
+  }
+}
+
 void Kernel::StringIndex::call(const char * chunk, ChunkIndex &index, bool first_string_carry) {
   auto input_buf = input.map<uint8_t *>();
+
+  constexpr const auto vectors_in_block = Engine::BLOCK_SIZE / 64;
+  constexpr const auto INDEX_BLOCK_SIZE = Engine::BLOCK_SIZE / 8;
 
   // Copy input into buffer
   auto blocks_in_chunk_count = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
   for (size_t block = 0; block < blocks_in_chunk_count; block++) {
     // Each block has 4 extra bytes
-    auto idx = block * (Engine::BLOCK_SIZE + 4);
-    memcpy(&input_buf[idx], &chunk[block * Engine::BLOCK_SIZE], Engine::BLOCK_SIZE);
-    uint32_t *buf_in_carry = (uint32_t *)&input_buf[idx + Engine::BLOCK_SIZE];
+    auto idx = block * (INDEX_BLOCK_SIZE * 2 + 4);
+    auto first_index_block = reinterpret_cast<uint64_t *>(&input_buf[idx]);
+    auto second_index_block = reinterpret_cast<uint64_t *>(&input_buf[idx + INDEX_BLOCK_SIZE]);
+    build_character_index<'"'>(&chunk[block * Engine::BLOCK_SIZE], first_index_block, Engine::BLOCK_SIZE);
+    build_character_index<'\\'>(&chunk[block * Engine::BLOCK_SIZE], second_index_block, Engine::BLOCK_SIZE);
+    uint32_t *buf_in_carry = (uint32_t *)&input_buf[idx + INDEX_BLOCK_SIZE * 2];
     *buf_in_carry = index.escape_carry_index[block];
   }
+
 
   input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
@@ -95,7 +116,6 @@ void Kernel::StringIndex::call(const char * chunk, ChunkIndex &index, bool first
   // String rectification (merged into memcpy)
   bool last_block_inside_string = first_string_carry;
   for (size_t block = 0; block < blocks_in_chunk_count; block++) {
-    auto vectors_in_block = Engine::BLOCK_SIZE / 64;
     for (size_t i = 0; i < vectors_in_block; i++) {
       auto idx = block * vectors_in_block + i;
       index.string_index[idx] = last_block_inside_string
