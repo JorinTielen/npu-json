@@ -7,24 +7,26 @@
 
 #include <npu-json/jsonpath/byte-code.hpp>
 #include <npu-json/jsonpath/query.hpp>
-#include <npu-json/npu/indexer.hpp>
-#include <npu-json/structural/iterator.hpp>
+#include <npu-json/npu/pipeline.hpp>
 #include <npu-json/util/debug.hpp>
-#include <npu-json/engine.hpp>
 #include <npu-json/error.hpp>
-#include "engine.hpp"
+
+#include <npu-json/engine.hpp>
 
 Engine::Engine(jsonpath::Query &query) {
   byte_code = std::make_unique<jsonpath::ByteCode>();
   byte_code->compile_from_query(query);
   stack = std::stack<StackFrame>();
+
+  iterator = std::make_unique<npu::PipelinedIterator>();
 }
 
 Engine::~Engine() {}
 
-std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
-  auto structural_iterator = std::make_unique<structural::Iterator>(json);
+std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
   auto result_set = std::make_shared<ResultSet>();
+
+  iterator->setup(json);
 
   // $.statuses[*].user.lang
   // OPEN_OBJECT, FIND_KEY "statuses", OPEN_OBJECT, WILDCARD, FIND_KEY "user", OPEN_OBJECT, FIND_KEY "lang", RECORD_RESULT
@@ -45,7 +47,6 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
         // std::cout << "OpenObject" << std::endl;
         handle_open_structure(
           StructureType::Object,
-          *structural_iterator.get(),
           previous_structural
         );
         break;
@@ -54,7 +55,6 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
         // std::cout << "OpenArray" << std::endl;
         handle_open_structure(
           StructureType::Array,
-          *structural_iterator.get(),
           previous_structural
         );
         break;
@@ -63,9 +63,8 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
         // std::cout << "FindKey" << std::endl;
         assert(current_instruction.search_key.has_value());
         handle_find_key(
-          json,
+          *json,
           current_instruction.search_key.value(),
-          *structural_iterator.get(),
           previous_structural
         );
         break;
@@ -73,7 +72,6 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
       case Opcode::WildCard: {
         // std::cout << "WildCard" << std::endl;
         handle_wildcard(
-          *structural_iterator.get(),
           previous_structural
         );
         break;
@@ -81,8 +79,7 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
       case Opcode::RecordResult: {
         // std::cout << "RecordResult" << std::endl;
         handle_record_result(
-          json,
-          *structural_iterator.get(),
+          *json,
           *result_set.get(),
           previous_structural
         );
@@ -93,20 +90,18 @@ std::shared_ptr<ResultSet> Engine::run_query_on(std::string &json) {
     }
   }
 
-  // Needed for tracing, grab the empty structural character at the end of input
-  structural_iterator->get_next_structural_character();
+  iterator->reset();
 
   return result_set;
 }
 
 void Engine::handle_open_structure(
   StructureType structure_type,
-  structural::Iterator &iterator,
   std::optional<StructuralCharacter> initial_structural_character
 ) {
   auto structural_character = initial_structural_character.has_value()
     ? &initial_structural_character.value()
-    : iterator.get_next_structural_character();
+    : iterator->get_next_structural_character();
 
   if (structural_character == nullptr) {
     throw EngineError("Unexpected end of JSON");
@@ -126,7 +121,7 @@ void Engine::handle_open_structure(
           // std::cout << "  advance()" << std::endl;
           advance();
         } else {
-          fallback(iterator);
+          fallback();
         }
         return;
       }
@@ -135,7 +130,7 @@ void Engine::handle_open_structure(
         if (structure_type == StructureType::Array) {
           advance();
         } else {
-          fallback(iterator);
+          fallback();
         }
         return;
       }
@@ -168,12 +163,15 @@ void Engine::handle_open_structure(
       }
     }
 
-    structural_character = iterator.get_next_structural_character();
+    structural_character = iterator->get_next_structural_character();
   }
 }
 
-bool check_key_match(std::string &json, size_t colon_position, std::string &search_key) {
-  // std::cout << "    check_key_match()" << std::endl;
+bool check_key_match(
+  const std::string &json,
+  size_t colon_position,
+  const std::string &search_key
+) {
   // {"a" : 1 }
   // 0123456789
   //    ^
@@ -212,14 +210,13 @@ bool is_closing_structural(char structural) {
 }
 
 void Engine::handle_find_key(
-  std::string &json,
-  std::string &search_key,
-  structural::Iterator &iterator,
+  const std::string &json,
+  const std::string &search_key,
   std::optional<StructuralCharacter> initial_structural_character
 ) {
   auto structural_character = initial_structural_character.has_value()
     ? &initial_structural_character.value()
-    : iterator.get_next_structural_character();
+    : iterator->get_next_structural_character();
 
   if (structural_character == nullptr) {
     throw EngineError("Unexpected end of JSON");
@@ -231,7 +228,7 @@ void Engine::handle_find_key(
   if (current_matched_key_at_depth && initial_structural_character.has_value()) {
     // If already matched a key and we're not already on the closing structural, we can tail-skip.
     if (!is_closing_structural(structural_character->c)) {
-      fallback(iterator);
+      fallback();
       return;
     }
   }
@@ -280,17 +277,16 @@ void Engine::handle_find_key(
         __builtin_unreachable();
     }
 
-    structural_character = iterator.get_next_structural_character();
+    structural_character = iterator->get_next_structural_character();
   }
 }
 
 void Engine::handle_wildcard(
-  structural::Iterator &iterator,
   std::optional<StructuralCharacter> initial_structural_character
 ) {
   auto structural_character = initial_structural_character.has_value()
     ? &initial_structural_character.value()
-    : iterator.get_next_structural_character();
+    : iterator->get_next_structural_character();
 
   if (structural_character == nullptr) {
     throw EngineError("Unexpected end of JSON");
@@ -356,19 +352,18 @@ void Engine::handle_wildcard(
         __builtin_unreachable();
     }
 
-    structural_character = iterator.get_next_structural_character();
+    structural_character = iterator->get_next_structural_character();
   }
 }
 
 void Engine::handle_record_result(
-  std::string &json,
-  structural::Iterator &iterator,
+  const std::string &json,
   ResultSet &result_set,
   std::optional<StructuralCharacter> initial_structural_character
 ) {
   auto structural_character = initial_structural_character.has_value()
     ? &initial_structural_character.value()
-    : iterator.get_next_structural_character();
+    : iterator->get_next_structural_character();
 
   if (structural_character == nullptr) {
     throw EngineError("Unexpected end of JSON");
@@ -419,7 +414,7 @@ void Engine::handle_record_result(
       }
     }
 
-    structural_character = iterator.get_next_structural_character();
+    structural_character = iterator->get_next_structural_character();
   }
 }
 
@@ -438,10 +433,10 @@ void Engine::advance() {
 }
 
 // Exit the current state, tail-skipping to to end of the structure.
-void Engine::fallback(structural::Iterator &iterator) {
+void Engine::fallback() {
   assert(!stack.empty());
 
-  auto last_structural = skip_current_structure(iterator, current_structure_type);
+  auto last_structural = skip_current_structure(current_structure_type);
   pass_structural(last_structural);
 
   back();
@@ -528,14 +523,13 @@ size_t Engine::calculate_query_depth() {
 
 // Skip the current JSON structure.
 StructuralCharacter Engine::skip_current_structure(
-  structural::Iterator &iterator,
   StructureType structure_type
 ) {
   size_t skip_depth = current_depth;
 
-  StructuralCharacter* structural_character;
+  StructuralCharacter* structural_character = nullptr;
   while (skip_depth >= current_depth) {
-    structural_character = iterator.get_next_structural_character();
+    structural_character = iterator->get_next_structural_character();
     if (structural_character == nullptr) throw EngineError("Unexpected end of JSON");
 
     switch (structural_character->c) {
@@ -558,6 +552,10 @@ StructuralCharacter Engine::skip_current_structure(
       default:
         __builtin_unreachable();
     }
+  }
+
+  if (structural_character == nullptr) {
+    throw EngineError("Unexpected end of JSON");
   }
 
   // TODO: Remove check if slow

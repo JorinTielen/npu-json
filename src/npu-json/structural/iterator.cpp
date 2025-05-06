@@ -51,7 +51,6 @@ StructuralCharacter* Iterator::get_next_structural_character() {
 void Iterator::switch_to_next_chunk() {
   if (chunk_idx >= json.length()) throw std::logic_error("Iterator passed the end of input");
 
-
   // Prepare the chunk for indexing
   auto remaining_length = json.length() - chunk_idx;
   auto padding_needed = remaining_length < Engine::CHUNK_SIZE;

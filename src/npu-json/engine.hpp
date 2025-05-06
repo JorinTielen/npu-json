@@ -12,6 +12,7 @@
 namespace npu {
 class StructuralIndex;
 class StructuralIndexer;
+class PipelinedIterator;
 }
 
 namespace structural {
@@ -48,14 +49,15 @@ class Engine {
 public:
   // Must be kept in sync with the DATA_CHUNK_SIZE AND DATA_BLOCK_SIZE in `src/aie/gen_mlir_design.py`.
   static constexpr size_t BLOCK_SIZE = 1024;
-  static constexpr size_t CHUNK_SIZE = 4 * 1000 * BLOCK_SIZE;
+  static constexpr size_t CHUNK_SIZE = 64 * 1000 * BLOCK_SIZE;
 
   Engine(jsonpath::Query &query);
   ~Engine();
 
-  std::shared_ptr<ResultSet> run_query_on(std::string& json);
+  std::shared_ptr<ResultSet> run_query_on(const std::string *const json);
 private:
   std::unique_ptr<jsonpath::ByteCode> byte_code;
+  std::unique_ptr<npu::PipelinedIterator> iterator;
 
   // Engine execution state
   bool executing_query = false;
@@ -71,29 +73,25 @@ private:
   // State implementations
   void handle_open_structure(
     StructureType structure_type,
-    structural::Iterator &iterator,
     std::optional<StructuralCharacter> initial_structural_character
   );
   void handle_find_key(
-    std::string &json,
-    std::string &search_key,
-    structural::Iterator &iterator,
+    const std::string &json,
+    const std::string &search_key,
     std::optional<StructuralCharacter> initial_structural_character
   );
   void handle_wildcard(
-    structural::Iterator &iterator,
     std::optional<StructuralCharacter> initial_structural_character
   );
   void handle_record_result(
-    std::string &json,
-    structural::Iterator &iterator,
+    const std::string &json,
     ResultSet &result_set,
     std::optional<StructuralCharacter> initial_structural_character
   );
 
   // State movement functions
   void advance();
-  void fallback(structural::Iterator &iterator);
+  void fallback();
   void abort(StructuralCharacter structural_character);
   void back();
 
@@ -105,5 +103,5 @@ private:
   std::optional<StructuralCharacter> passed_previous_structural();
   size_t calculate_query_depth();
 
-  StructuralCharacter skip_current_structure(structural::Iterator &iterator, StructureType structure_type);
+  StructuralCharacter skip_current_structure(StructureType structure_type);
 };
