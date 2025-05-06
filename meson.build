@@ -10,6 +10,8 @@ subdir('src/aie')
 project_source_files = [
   'src/npu-json/jsonpath/byte-code.cpp',
   'src/npu-json/npu/indexer.cpp',
+  'src/npu-json/npu/kernel.cpp',
+  'src/npu-json/npu/pipeline.cpp',
   'src/npu-json/structural/classifier.cpp',
   'src/npu-json/structural/iterator.cpp',
   'src/npu-json/util/tracer.cpp',
@@ -27,7 +29,7 @@ project_include_directories = [
 
 build_args = []
 
-add_project_arguments(['-Og', '-march=native'], language: 'cpp')
+add_project_arguments(['-O3', '-march=native'], language: 'cpp')
 
 npu_json_lib = shared_library(
   'npu_json_lib',
