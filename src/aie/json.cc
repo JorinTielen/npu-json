@@ -93,7 +93,6 @@ void structural_character_index_aie(
 ) {
   static constexpr unsigned int V = 64;
 
-  // v64uint8 *__restrict data_ptr = (v64uint8 *)in_buffer;
   uint8_t *__restrict data_ptr = (uint8_t *)in_buffer;
 
   const aie::vector<uint8_t, V> brace_open_mask = aie::broadcast<uint8_t, V>('{');

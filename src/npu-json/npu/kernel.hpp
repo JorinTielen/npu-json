@@ -14,22 +14,18 @@ public:
 
   void call(const char * chunk, ChunkIndex &index, bool first_string_carry, size_t chunk_idx);
 private:
+  xrt::bo instr;
+  size_t instr_size;
+  xrt::kernel kernel;
+
   struct StringIndex {
-    void call(const char * chunk, ChunkIndex &index, bool first_string_carry);
-    xrt::kernel kernel;
-    xrt::bo instr;
     xrt::bo input;
     xrt::bo output;
-    size_t instr_size;
   } string_index;
 
   struct StructuralIndexBuffers {
-    void call(const char * chunk, ChunkIndex &index, size_t chunk_idx);
-    xrt::kernel kernel;
-    xrt::bo instr;
     xrt::bo input;
     xrt::bo output;
-    size_t instr_size;
   } structural_index;
 };
 

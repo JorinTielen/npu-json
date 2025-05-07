@@ -49,14 +49,14 @@ StructuralIndexer::StructuralIndexer(bool initialize_npu = true) {
   structural_character_index_kernel = xrt::kernel(context, "STRUCTURALCHARACTERINDEX");
 
   // Setup instruction buffer (string)
-  auto instr1_v = util::load_instr_sequence(STRING_INDEX_INSTS_PATH);
-  instr1_size = instr1_v.size();
-  bo_instr1 = xrt::bo(device, instr1_size * sizeof(uint32_t),
-                      XCL_BO_FLAGS_CACHEABLE, string_index_kernel.group_id(1));
-  auto instr2_v = util::load_instr_sequence(STRUCTURAL_CHARACTER_INDEX_INSTS_PATH);
-  instr2_size = instr2_v.size();
-  bo_instr2 = xrt::bo(device, instr2_size * sizeof(uint32_t),
-                      XCL_BO_FLAGS_CACHEABLE, structural_character_index_kernel.group_id(1));
+  // auto instr1_v = util::load_instr_sequence(STRING_INDEX_INSTS_PATH);
+  // instr1_size = instr1_v.size();
+  // bo_instr1 = xrt::bo(device, instr1_size * sizeof(uint32_t),
+  //                     XCL_BO_FLAGS_CACHEABLE, string_index_kernel.group_id(1));
+  // auto instr2_v = util::load_instr_sequence(STRUCTURAL_CHARACTER_INDEX_INSTS_PATH);
+  // instr2_size = instr2_v.size();
+  // bo_instr2 = xrt::bo(device, instr2_size * sizeof(uint32_t),
+  //                     XCL_BO_FLAGS_CACHEABLE, structural_character_index_kernel.group_id(1));
 
   // Setup input/output buffers (string)
   size_t in_buffer_size_string = Engine::CHUNK_SIZE + 4 * CARRY_INDEX_SIZE;
@@ -69,10 +69,10 @@ StructuralIndexer::StructuralIndexer(bool initialize_npu = true) {
   bo_out2 = xrt::bo(device, INDEX_SIZE, XRT_BO_FLAGS_HOST_ONLY, structural_character_index_kernel.group_id(4));
 
   // Copy instructions to buffer
-  memcpy(bo_instr1.map<void *>(), instr1_v.data(), instr1_v.size() * sizeof(uint32_t));
-  bo_instr1.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  memcpy(bo_instr2.map<void *>(), instr2_v.data(), instr2_v.size() * sizeof(uint32_t));
-  bo_instr2.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  // memcpy(bo_instr1.map<void *>(), instr1_v.data(), instr1_v.size() * sizeof(uint32_t));
+  // bo_instr1.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  // memcpy(bo_instr2.map<void *>(), instr2_v.data(), instr2_v.size() * sizeof(uint32_t));
+  // bo_instr2.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
   // Zero out output buffers
   memset(bo_out1.map<uint8_t *>(), 0, INDEX_SIZE);
