@@ -12,7 +12,7 @@
 
 namespace npu {
 
-constexpr const std::size_t QUEUE_DEPTH = 2;
+constexpr const std::size_t QUEUE_DEPTH = 4;
 
 using ChunkIndexQueue = Queue<ChunkIndex, QUEUE_DEPTH>;
 
