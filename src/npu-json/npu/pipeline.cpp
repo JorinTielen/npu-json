@@ -14,9 +14,15 @@ static void run_indexer(
 
   while (!indexer.is_at_end()) {
     auto index = index_queue->reserve_write_space();
-    indexer.index_chunk(*index);
-    index_queue->release_write_space(index);
+    indexer.index_chunk(index, [index_queue, index]{
+      // Only release the write space once the callback comes back.
+      // Because of ping-pong buffering, the index is not finished
+      // once the `index_chunk` function returns.
+      index_queue->release_write_space(index);
+    });
   }
+
+  indexer.wait_for_last_chunk();
 }
 
 PipelinedIterator::PipelinedIterator(std::string &json)
@@ -105,60 +111,20 @@ StructuralCharacter* PipelinedIterator::get_next_structural_character_in_chunk()
   return nullptr;
 }
 
-void PipelinedIndexer::construct_escape_carry_index(const char *chunk, ChunkIndex &index) {
-  auto& tracer = util::Tracer::get_instance();
-  auto trace = tracer.start_trace("construct_escape_carry_index");
 
-  index.escape_carry_index[0] = chunk_carry_escape;
-  for (size_t i = 1; i <= Engine::CHUNK_SIZE / Engine::BLOCK_SIZE; i++) {
-    auto is_escape_char = chunk[i * Engine::BLOCK_SIZE - 1] == '\\';
-    if (!is_escape_char) {
-      index.escape_carry_index[i] = false;
-      continue;
-    }
-
-    auto escape_char_count = 1;
-    while (chunk[(i * Engine::BLOCK_SIZE - 1) - escape_char_count] == '\\') {
-      is_escape_char = !is_escape_char;
-      escape_char_count++;
-    }
-
-    index.escape_carry_index[i] = is_escape_char;
-  }
-
-  tracer.finish_trace(trace);
-}
-
-static std::array<char, Engine::CHUNK_SIZE> backup_chunk;
-
-void PipelinedIndexer::index_chunk(ChunkIndex &index) {
+void PipelinedIndexer::index_chunk(ChunkIndex *index, std::function<void()> callback) {
   if (chunk_idx >= json->length()) {
     throw std::logic_error("Attempted to index past end of JSON");
   }
 
-  // For the last chunk we will need to pad with spaces.
-  auto remaining_length = json->length() - chunk_idx;
-  auto padding_needed = remaining_length < Engine::CHUNK_SIZE;
-  auto n = padding_needed ? remaining_length : Engine::CHUNK_SIZE;
-  if (padding_needed) {
-    // Pad with spaces at end
-    memcpy(backup_chunk.data(), json->c_str() + chunk_idx, n);
-    memset(backup_chunk.data() + n, ' ', Engine::CHUNK_SIZE - n);
-  }
-
-  const char *chunk = padding_needed ? backup_chunk.data() : json->c_str() + chunk_idx;
-
-  // Prepare escape carries for string index
-  construct_escape_carry_index(chunk, index);
-
   // Perform string index and structural index on NPU
-  kernel.call(chunk, index, chunk_carry_string, chunk_idx);
-
-  // Keep track of state between chunks
-  chunk_carry_escape = index.ends_with_escape();
-  chunk_carry_string = index.ends_in_string();
+  kernel.call(index, chunk_idx, callback);
 
   chunk_idx += Engine::CHUNK_SIZE;
+}
+
+void PipelinedIndexer::wait_for_last_chunk() {
+  kernel.wait_for_previous();
 }
 
 bool PipelinedIndexer::is_at_end() {

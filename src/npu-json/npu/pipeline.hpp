@@ -51,7 +51,9 @@ public:
   PipelinedIndexer(Kernel &kernel, const std::string *const json)
     : kernel(kernel), json(json) {}
 
-  void index_chunk(ChunkIndex &chunk_index);
+  void index_chunk(ChunkIndex *chunk_index, std::function<void()> callback);
+
+  void wait_for_last_chunk();
 
   bool is_at_end();
 private:

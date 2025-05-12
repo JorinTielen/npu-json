@@ -21,31 +21,35 @@ public:
 
   static_assert(N >= 2);
 
-  explicit Queue() : read_idx(0), write_idx(0) {
+  explicit Queue() : read_idx(0), write_idx(0), reserved_write_idx(0) {
     record_pool = std::make_unique<RecordPool>();
   }
 
   // Reserve a space to write into. Waits for a free space if the queue is full.
-  // It is not possible to reserve more than one space at a time. Multiple calls
-  // return the same space.
   T* reserve_write_space() {
     std::unique_lock<std::mutex> guard(queue_mutex);
 
     auto pool = record_pool.get();
 
-    auto next_write_idx = write_idx + 1;
-    if (next_write_idx == N) next_write_idx = 0;
+    auto next_reserved_write_idx = reserved_write_idx + 1;
+    if (next_reserved_write_idx == N) next_reserved_write_idx = 0;
 
     // Wait until a space is free if the queue is full.
-    queue_full_condition.wait(guard, [this, next_write_idx]{
-      return next_write_idx != read_idx;
+    queue_full_condition.wait(guard, [this, next_reserved_write_idx]{
+      return next_reserved_write_idx != read_idx;
     });
 
-    return &pool->data()[write_idx];
+    auto ptr = &pool->data()[reserved_write_idx];
+
+
+    reserved_write_idx = next_reserved_write_idx;
+
+    return ptr;
   }
 
   // Release the reserved space to signal writing is finished.
   // This transfers ownership of the space to the consumer.
+  // You must release spaces in the order they were reserved.
   void release_write_space(T* space) {
     std::lock_guard<std::mutex> guard(queue_mutex);
 
@@ -95,15 +99,10 @@ public:
     queue_full_condition.notify_one();
   }
 
-  bool is_empty() {
-    std::lock_guard<std::mutex> guard(queue_mutex);
-
-    return read_idx == write_idx;
-  }
-
   void reset() {
     read_idx = 0;
     write_idx = 0;
+    reserved_write_idx = 0;
   }
 private:
   std::mutex queue_mutex;
@@ -114,6 +113,7 @@ private:
 
   std::size_t read_idx;
   std::size_t write_idx;
+  std::size_t reserved_write_idx;
 };
 
 } // namespace npu
