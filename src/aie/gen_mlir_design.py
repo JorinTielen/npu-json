@@ -11,7 +11,7 @@ from aie.helpers.dialects.ext.scf import _for as range_
 
 # Must be kept in sync with the CHUNK_SIZE and BLOCK_SIZE in `src/npu-json/engine.hpp`.
 # The 4 extra bytes are for the carry index
-BLOCKS_PER_CHUNK = 4 * 1000
+BLOCKS_PER_CHUNK = 2 * 1000
 DATA_BLOCK_SIZE = 1024
 DATA_CHUNK_SIZE = BLOCKS_PER_CHUNK * DATA_BLOCK_SIZE
 
