@@ -192,14 +192,13 @@ bool check_key_match(
 
   if (json[start_position] != search_key[0]) return false;
 
-  auto match = memmem(
+  auto match = memcmp(
     json.c_str() + start_position,
-    search_key.length(),
     search_key.c_str(),
     search_key.length()
   );
 
-  return match != nullptr;
+  return match == 0;
 }
 
 bool is_closing_structural(char structural) {
