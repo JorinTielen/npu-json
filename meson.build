@@ -9,11 +9,9 @@ subdir('src/aie')
 
 project_source_files = [
   'src/npu-json/jsonpath/byte-code.cpp',
-  'src/npu-json/npu/indexer.cpp',
   'src/npu-json/npu/kernel.cpp',
   'src/npu-json/npu/pipeline.cpp',
   'src/npu-json/structural/classifier.cpp',
-  'src/npu-json/structural/iterator.cpp',
   'src/npu-json/util/tracer.cpp',
   'src/npu-json/engine.cpp',
   'src/npu-json/result-set.cpp',

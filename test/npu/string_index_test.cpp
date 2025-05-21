@@ -20,7 +20,7 @@
 
 void write_expected_index(uint64_t *index, std::string &expected_str) {
   assert(expected_str.size() % 64 == 0);
-  assert(expected_str.size() / 8 < npu::INDEX_SIZE);
+  assert(expected_str.size() / 8 < npu::CHUNK_BIT_INDEX_SIZE);
 
   auto index_offset = 0;
   for (size_t i = 0; i < expected_str.size(); i += 64) {
@@ -35,9 +35,8 @@ void write_expected_index(uint64_t *index, std::string &expected_str) {
 bool test_string_index(const char *test) {
   // Setup buffers
   auto chunk = new char[Engine::CHUNK_SIZE] {};
-  constexpr auto index_size = npu::INDEX_SIZE / 8;
+  constexpr auto index_size = npu::CHUNK_BIT_INDEX_SIZE / 8;
   auto expected_index = new uint64_t[index_size] {};
-
 
   // Read in test file
   auto test_path = "test/npu/fixtures/" + std::string(test) + ".txt";

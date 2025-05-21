@@ -7,7 +7,6 @@
 #include <vector>
 
 #include <npu-json/jsonpath/byte-code.hpp>
-#include <npu-json/npu/indexer.hpp>
 
 inline void print_input_and_index(const char* input, const uint64_t *index, const size_t at = 0) {
   auto index_bitset = std::bitset<64>(index[at]);
