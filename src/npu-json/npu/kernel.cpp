@@ -107,13 +107,17 @@ void Kernel::construct_escape_carry_index(const char *chunk, ChunkIndex &index, 
   tracer.finish_trace(trace);
 }
 
-void Kernel::prepare_kernel_input(const char *chunk, ChunkIndex &index, bool first_escape_carry) {
-  auto input_buf = string_buffers[current].input.map<uint8_t *>();
+void Kernel::prepare_kernel_input(const char *chunk, ChunkIndex &index, bool first_escape_carry, size_t buffer) {
+  auto& tracer = util::Tracer::get_instance();
+
+  auto input_buf = string_buffers[buffer].input.map<uint8_t *>();
   constexpr const auto INDEX_BLOCK_SIZE = Engine::BLOCK_SIZE / 8;
   constexpr const auto BLOCKS_IN_CHUNK_COUNT = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
 
   // Setup escape carry index for string index on NPU
   construct_escape_carry_index(chunk, index, first_escape_carry);
+
+  auto trace = tracer.start_trace("prepare_kernel_input");
 
   // Copy string index input into buffer
   for (size_t block = 0; block < BLOCKS_IN_CHUNK_COUNT; block++) {
@@ -126,12 +130,18 @@ void Kernel::prepare_kernel_input(const char *chunk, ChunkIndex &index, bool fir
     uint32_t *buf_in_carry = (uint32_t *)&input_buf[idx + INDEX_BLOCK_SIZE * 2];
     *buf_in_carry = index.escape_carry_index[block];
   }
+
+  tracer.finish_trace(trace);
 }
 
 // NOTE: This operates on the back-buffer, not the current due to ping-pong buffering.
 void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size_t chunk_idx) {
+  auto& tracer = util::Tracer::get_instance();
+
   constexpr const auto VECTORS_IN_BLOCK = Engine::BLOCK_SIZE / 64;
   constexpr const auto BLOCKS_IN_CHUNK_COUNT = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
+
+  auto trace = tracer.start_trace("read_kernel_output");
 
   // Reconstruct previous chunk sub-buffer for JSON data input
   auto sub_input = xrt::bo(json_data_input, Engine::CHUNK_SIZE, chunk_idx);
@@ -168,17 +178,27 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
       nonquoted_structural = nonquoted_structural & (nonquoted_structural - 1);
     }
   }
+
+  tracer.finish_trace(trace);
 }
 
 void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
   auto& tracer = util::Tracer::get_instance();
 
+  // FIXME: This is not updated anywhere
   auto first_escape_carry = false;
+
+  // Use sub-buffer for JSON data input
+  auto sub_input = xrt::bo(json_data_input, Engine::CHUNK_SIZE, chunk_idx);
+  auto chunk = sub_input.map<const char *>();
 
   // If we had a previous run, we should wait for it to finish before starting a
   // new kernel on the NPU, and ping the callback. We also have to handle inter-chunk
   // dependencies before the next kernel can be started.
   if (previous_run.has_value()) {
+    // Prepare the input buffers for next run
+    prepare_kernel_input(chunk, *index, first_escape_carry, !current);
+
     previous_run->handle.wait();
 
     string_buffers[current].output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
@@ -189,14 +209,11 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
 
     // Flip the ping-pong buffers
     current = !current;
+  } else {
+    // Prepare the input buffers for current run
+    prepare_kernel_input(chunk, *index, first_escape_carry, current);
   }
 
-  // Use sub-buffer for JSON data input
-  auto sub_input = xrt::bo(json_data_input, Engine::CHUNK_SIZE, chunk_idx);
-  auto chunk = sub_input.map<const char *>();
-
-  // Prepare the input buffers
-  prepare_kernel_input(chunk, *index, first_escape_carry);
 
   // Start NPU time trace
   trace = tracer.start_trace("construct_combined_index_npu");
