@@ -38,6 +38,7 @@ private:
 
   std::optional<RunHandle> previous_run;
   bool previous_string_carry = false;
+  bool previous_escape_carry = false;
 
   xrt::bo json_data_input;
 

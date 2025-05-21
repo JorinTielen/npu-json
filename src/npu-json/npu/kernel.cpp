@@ -185,9 +185,6 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
 void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
   auto& tracer = util::Tracer::get_instance();
 
-  // FIXME: This is not updated anywhere
-  auto first_escape_carry = false;
-
   // Use sub-buffer for JSON data input
   auto sub_input = xrt::bo(json_data_input, Engine::CHUNK_SIZE, chunk_idx);
   auto chunk = sub_input.map<const char *>();
@@ -197,7 +194,7 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
   // dependencies before the next kernel can be started.
   if (previous_run.has_value()) {
     // Prepare the input buffers for next run
-    prepare_kernel_input(chunk, *index, first_escape_carry, !current);
+    prepare_kernel_input(chunk, *index, previous_escape_carry, !current);
 
     previous_run->handle.wait();
 
@@ -211,7 +208,7 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
     current = !current;
   } else {
     // Prepare the input buffers for current run
-    prepare_kernel_input(chunk, *index, first_escape_carry, current);
+    prepare_kernel_input(chunk, *index, previous_escape_carry, current);
   }
 
 
@@ -244,6 +241,9 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
     // Clear the previous run
     previous_run.reset();
   }
+
+  // Update previous escape carry before we prepare the next chunk
+  previous_escape_carry = index->ends_with_escape();
 
   // Update previous run for next iteration
   previous_run = std::optional<RunHandle>({ run, index, chunk_idx, callback });
