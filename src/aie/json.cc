@@ -4,6 +4,18 @@
 
 #include <aie_api/aie.hpp>
 
+#ifndef __STRINGIFY
+#define __STRINGIFY(a) #a
+#endif
+#define AIE_LOOP_MIN_ITERATION_COUNT(x)                                        \
+  _Pragma(__STRINGIFY(clang loop min_iteration_count(x)))
+#define AIE_LOOP_MAX_ITERATION_COUNT(x)                                        \
+  _Pragma(__STRINGIFY(clang loop max_iteration_count(x)))
+#define AIE_LOOP_RANGE(a, ...)                                                 \
+  AIE_LOOP_MIN_ITERATION_COUNT(a)                                              \
+  __VA_OPT__(AIE_LOOP_MAX_ITERATION_COUNT(__VA_ARGS__))
+#define AIE_PREPARE_FOR_PIPELINING
+
 __attribute__((inline)) uint64_t prefix_xor(uint64_t bitmask) {
     bitmask ^= bitmask << 1;
     bitmask ^= bitmask << 2;
@@ -12,32 +24,6 @@ __attribute__((inline)) uint64_t prefix_xor(uint64_t bitmask) {
     bitmask ^= bitmask << 16;
     bitmask ^= bitmask << 32;
     return bitmask;
-}
-
-__attribute__((inline)) uint64_t trailing_zeroes(uint64_t n) {
-  // return aie::(bitmask);
-  int zeros = 0;
-  if((n % 100000000) == 0)
-  {
-      zeros += 8;
-      n /= 100000000;
-  }
-  if((n % 10000) == 0)
-  {
-      zeros += 4;
-      n /= 10000;
-  }
-  if((n % 100) == 0)
-  {
-      zeros += 2;
-      n /= 100;
-  }
-  if((n % 10) == 0)
-  {
-      zeros++;
-  }
-  return zeros;
-  // return __builtin_ctzll(bitmask);
 }
 
 // TODO: Refactor to use structs and std::array for input/output buffers instead of byte pointers.
@@ -55,8 +41,9 @@ void string_index_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict index_
   uint64_t prev_in_string = 0;
   uint64_t prev_is_escaped = uint64_t(*carry_ptr);
 
-  for (unsigned int i = 0; i < n; i += V)
-      chess_prepare_for_pipelining chess_loop_range(16,) {
+  AIE_PREPARE_FOR_PIPELINING
+  AIE_LOOP_RANGE(16, 16)
+  for (unsigned int i = 0; i < n; i += V) {
     // Scan for quote and escape characters in input
     uint64_t quotes = *quotes_ptr++;
     uint64_t backslash = *backslash_ptr++;
@@ -104,6 +91,8 @@ void structural_character_index_aie(
   const aie::vector<uint8_t, V> colon_mask = aie::broadcast<uint8_t, V>(':');
   const aie::vector<uint8_t, V> comma_mask = aie::broadcast<uint8_t, V>(',');
 
+  AIE_PREPARE_FOR_PIPELINING
+  AIE_LOOP_RANGE(16, 16)
   for (size_t i = 0; i < n; i += V) {
     const aie::vector<uint8_t, V> data = aie::load_v<V>(data_ptr);
     data_ptr += V;
