@@ -11,7 +11,8 @@
 #include <xrt/xrt_device.h>
 #include <xrt/xrt_kernel.h>
 
-#include <npu-json/npu/indexer.hpp>
+#include <npu-json/npu/pipeline.hpp>
+#include <npu-json/npu/chunk-index.hpp>
 #include <npu-json/util/debug.hpp>
 #include <npu-json/util/files.hpp>
 #include <npu-json/util/strings.hpp>
@@ -31,11 +32,12 @@ void write_expected_index(uint64_t *index, std::string &expected_str) {
   }
 }
 
-bool test_string_index(const char *test, std::shared_ptr<npu::StructuralIndexer> indexer) {
+bool test_string_index(const char *test) {
   // Setup buffers
   auto chunk = new char[Engine::CHUNK_SIZE] {};
   constexpr auto index_size = npu::INDEX_SIZE / 8;
   auto expected_index = new uint64_t[index_size] {};
+
 
   // Read in test file
   auto test_path = "test/npu/fixtures/" + std::string(test) + ".txt";
@@ -51,29 +53,28 @@ bool test_string_index(const char *test, std::shared_ptr<npu::StructuralIndexer>
   memset(chunk, ' ', Engine::CHUNK_SIZE);
   memcpy(chunk, json.c_str(), json.length());
 
+  // Setup kernel and indexer
+  auto kernel = std::make_unique<npu::Kernel>(json);
+  auto indexer = std::make_shared<npu::PipelinedIndexer>(*kernel, &json);
+
   // Copy expected index part from testfile
   write_expected_index(expected_index, expected_str);
 
+  auto chunk_index = new npu::ChunkIndex();
+
   // Run indexer
-  auto structural_index = indexer->construct_structural_index(chunk, false, false, 0);
+  indexer->index_chunk(chunk_index, []{});
+  indexer->wait_for_last_chunk();
 
   // Expect results
   auto result = false;
   for (size_t i = 0; i < index_size; i++) {
-    auto eq = structural_index->string_index[i] == expected_index[i];
-    if (!eq) {
-      result = true;
-      // std::cout << "!" << i << std::endl;
-      // std::cout << "actual:" << std::endl;
-      // print_input_and_index(chunk, structural_index->string_index.data(), i);
-      // std::cout << "expected:" << std::endl;
-      // print_input_and_index(chunk, expected_index, i);
-      // std::cout << std::endl;
-    }
+    auto eq = chunk_index->string_index[i] == expected_index[i];
+    if (!eq) result = true;
   }
 
   // Cleanup
-  structural_index.reset();
+  delete chunk_index;
   delete[] chunk;
 
   return result;
@@ -95,15 +96,9 @@ int main(int argc, const char *argv[]) {
 
   auto global_status = 0;
 
-  auto indexer = std::make_shared<npu::StructuralIndexer>(true);
-
-  auto status_test_string_index = test_string_index("basic", indexer);
+  auto status_test_string_index = test_string_index("basic");
   print_test_results("basic", status_test_string_index);
   global_status = global_status || status_test_string_index;
-
-  // status_test_string_index = test_string_index("escape_carry", indexer);
-  // print_test_results(status_test_string_index);
-  // global_status = global_status || status_test_string_index;
 
   return global_status;
 }
