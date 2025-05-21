@@ -83,7 +83,7 @@ inline uint64_t trailing_zeroes(uint64_t mask) {
   return __builtin_ctzll(mask);
 }
 
-void Kernel::construct_escape_carry_index(const char *chunk, ChunkIndex &index, bool first_escape_carry) {
+void construct_escape_carry_index(const char *chunk, ChunkIndex &index, bool first_escape_carry) {
   auto& tracer = util::Tracer::get_instance();
   auto trace = tracer.start_trace("construct_escape_carry_index");
 

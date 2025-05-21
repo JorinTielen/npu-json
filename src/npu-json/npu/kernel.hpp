@@ -50,8 +50,9 @@ private:
 
   void prepare_kernel_input(const char *chunk, ChunkIndex &index, bool first_escape_carry, size_t buffer);
   void read_kernel_output(ChunkIndex &index, bool first_string_carry, size_t chunk_idx);
-
-  void construct_escape_carry_index(const char *chunk, ChunkIndex &index, bool first_escape_carry);
 };
+
+// Outside for testing purposes
+void construct_escape_carry_index(const char *chunk, ChunkIndex &index, bool first_escape_carry);
 
 } // namespace npu
