@@ -390,7 +390,7 @@ void Engine::handle_record_result(
         if (current_depth == query_depth) {
           // If this was the last key or value in the array, this closing marks the end of the result value.
           // std::cout << "  record_result()" << std::endl;
-          result_set.record_result(json, start_pos + 1, s.pos - 1);
+          result_set.record_result(start_pos + 1, s.pos - 1);
           // std::cout << "  abort()" << std::endl;
           abort(s);
           return;
@@ -407,7 +407,7 @@ void Engine::handle_record_result(
         if (current_depth == query_depth) {
           // Record a result at this position
           // std::cout << "  record_result()" << std::endl;
-          result_set.record_result(json, start_pos + 1, s.pos - 1);
+          result_set.record_result(start_pos + 1, s.pos - 1);
           // std::cout << "  back()" << std::endl;
           back();
           return;
