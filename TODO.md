@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] Add unit tests for JSONPath parser
+- [X] Add unit tests for JSONPath parser
 - [ ] Compile for NPU2 and test on AMD cloud
 - [ ] Create thesis project on Overleaf
   - [ ] Template
