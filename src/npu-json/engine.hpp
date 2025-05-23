@@ -25,9 +25,10 @@ enum class StructureType {
   Array
 };
 
+
 struct StructuralCharacter {
   char c;
-  size_t pos;
+  uint32_t pos;
 };
 
 struct StackFrame {
