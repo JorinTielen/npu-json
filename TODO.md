@@ -5,7 +5,7 @@
 - [ ] Create thesis project on Overleaf
   - [ ] Template
   - [ ] Rough outline of chapters
-- [ ] Implement proper results gathering
+- [X] Implement proper results gathering
 - [ ] Update performance measurements sheet
 - [X] Packed struct for structural character
   - [ ] Tagged 32-bit integer for structural character
