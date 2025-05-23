@@ -16,22 +16,27 @@ enum class SegmentType {
 };
 
 namespace segments {
-struct Name {
-  std::string member;
+struct Member {
+  std::string name;
+};
+
+struct Descendant {
+  std::string name;
 };
 
 struct Wildcard {};
-struct Index { size_t value; };
+struct Index { int64_t value; };
 } // namespace segments
 
 using Segment = std::variant<
-  segments::Name,
+  segments::Member,
+  segments::Descendant,
   segments::Wildcard,
   segments::Index
 >;
 
 struct Query {
-  std::vector<Segment> segments;
+  std::vector<Segment> segments = {};
 };
 
 } // namespace jsonpath

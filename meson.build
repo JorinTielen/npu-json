@@ -2,13 +2,15 @@ project(
   'npu-json',
   ['cpp'],
   version : '0.1.0',
-  default_options : ['warning_level=3'],
+  default_options : ['warning_level=3', 'cpp_std=c++20'],
 )
 
 subdir('src/aie')
 
 project_source_files = [
   'src/npu-json/jsonpath/byte-code.cpp',
+  'src/npu-json/jsonpath/lexer.cpp',
+  'src/npu-json/jsonpath/parser.cpp',
   'src/npu-json/npu/kernel.cpp',
   'src/npu-json/npu/pipeline.cpp',
   'src/npu-json/structural/classifier.cpp',

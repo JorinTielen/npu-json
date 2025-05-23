@@ -14,9 +14,9 @@ void ByteCode::compile_from_query(Query &query) {
       using T = std::decay_t<decltype(arg)>;
       if constexpr (std::is_same_v<std::monostate, T>) {
         throw std::logic_error("Invalid query segment type.");
-      } else if constexpr (std::is_same_v<segments::Name, T>) {
+      } else if constexpr (std::is_same_v<segments::Member, T>) {
         instructions.emplace_back(Opcode::OpenObject);
-        instructions.emplace_back(Opcode::FindKey, arg.member);
+        instructions.emplace_back(Opcode::FindKey, arg.name);
       } else if constexpr (std::is_same_v<segments::Wildcard, T>) {
         instructions.emplace_back(Opcode::WildCard);
       } else {

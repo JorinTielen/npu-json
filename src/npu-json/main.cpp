@@ -4,6 +4,7 @@
 #include <chrono>
 #include <iostream>
 
+#include <npu-json/jsonpath/parser.hpp>
 #include <npu-json/jsonpath/query.hpp>
 #include <npu-json/util/files.hpp>
 #include <npu-json/util/tracer.hpp>
@@ -46,46 +47,29 @@ void run_single(std::string &data, Engine &engine) {
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    std::cout << "Usage: ./nj [json] [--bench]" << std::endl;
+  if (argc < 3) {
+    std::cout << "Usage: ./nj json query [--bench] [--trace]" << std::endl;
     return -1;
   }
 
   bool bench = false;
-  if ((argc == 3 && std::string(argv[2]) == "--bench") ||
-      (argc == 4 && std::string(argv[3]) == "--bench")) {
+  if ((argc == 4 && std::string(argv[3]) == "--bench") ||
+      (argc == 5 && std::string(argv[4]) == "--bench")) {
     bench = true;
   }
 
   bool trace = false;
-  if ((argc == 3 && std::string(argv[2]) == "--trace") ||
-      (argc == 4 && std::string(argv[3]) == "--trace")) {
+  if ((argc == 4 && std::string(argv[3]) == "--trace") ||
+      (argc == 5 && std::string(argv[4]) == "--trace")) {
     trace = true;
   }
 
   // Read in JSON file
   std::string data = util::load_file_content(argv[1]);
 
-  // TODO: Parse query from string
-  auto query = new jsonpath::Query {
-    {
-      // jsonpath::segments::Name { "statuses" },
-      // jsonpath::segments::Wildcard {},
-      // jsonpath::segments::Name { "user" },
-      // jsonpath::segments::Name { "lang" }
-
-      // jsonpath::segments::Name { "products" },
-      // jsonpath::segments::Wildcard {},
-      // jsonpath::segments::Name { "videoChapters" },
-      // jsonpath::segments::Wildcard {},
-      // jsonpath::segments::Name { "chapter" }
-
-      jsonpath::segments::Name { "items" },
-      jsonpath::segments::Wildcard {},
-      jsonpath::segments::Name { "bestMarketplacePrice" },
-      jsonpath::segments::Name { "price" }
-    }
-  };
+  // Parse query from string
+  auto parser = jsonpath::Parser();
+  auto query = parser.parse(argv[2]);
 
   auto engine = Engine(*query, data);
 
@@ -100,6 +84,5 @@ int main(int argc, char *argv[]) {
     tracer.export_traces("traces.csv");
   }
 
-  delete query;
   return 0;
 }
