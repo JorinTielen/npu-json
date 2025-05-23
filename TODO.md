@@ -1,44 +1,24 @@
 # TODO
 
-- [X] Build and commit current JSONPath CPU engine code (`throw NotImplemented` on index call is fine)
-- [X] Test & measure multiple kernels in one xclbin, call after each other with results passing without memcopy
-- [ ] Research Pison iterator
-  - Is it actually parallel?
-  - Main loop / iterator state
-  - What indices does it rely on?
-  - How to adapt up/down/etc actions to jsonpath?
-  - Leveled index a good idea after all?
-- [ ] Setup JSON processing skeleton
-  - [X] Main "event loop" for JSONPath automaton
-  - [X] Iterate over file in chunks, calling npu to index each chunk
-  - [X] Correctly pass carry to all the kernels
-  - [X] Implement string rectification
-  - [X] Handle carries between chunks in engine
-  - [X] Build CPU side structural character index (list + iterator interface)
-  - [X] Implement vectorized classification for all structural character types
-    - [X] Still not very fast due to std::vector, rewrite it to use generator pattern
-  - [X] Build basic JSONPath automaton transitions based on structural characters
-    - [ ] Improve automaton (non-recurrent states + fix fallback)
-  - [X] Look into how to detect JSON keys and where the string comparisons come in
-  - [ ] Simple result recorder (wrapper around std::vector) to record results
-- [ ] Research where/how `simdjson` validates JSON whitespace outside of strings
-- [ ] Measure flamegraph of rsonpath
-- [X] Setup test framework (FileCheck or other i/o test)
-  - Build special small "unit"-test executables that run NPU kernels
-  - Tests for CPU side JSONPath query parsing
-  - End-to-end test with both CPU and NPU indexer
-  - Small JSON file and expected index specified in test
-    - Test entire large array so dataflow splitting etc. is tested
-- [X] Write a bunch of tests for engine edge cases
-  - Carry between blocks
-  - Carry between chunks
-  - String between blocks
-  - String between chunks
-- [ ] Add CPU string index and write e2e tests w/ JSONPath
-- [ ] (Optional) Set up fancy developer tooling
+- [ ] Add unit tests for JSONPath parser
+- [ ] Compile for NPU2 and test on AMD cloud
+- [ ] Create thesis project on Overleaf
+  - [ ] Template
+  - [ ] Rough outline of chapters
+- [ ] Implement proper results gathering
+- [ ] Update performance measurements sheet
+- [ ] Packed struct for structural character
+  - [ ] Tagged 32-bit integer for structural character
+- [ ] Add support for index + index range to automaton
+- [ ] (Optional) Debug + add unit tests for queue
+- [ ] (Optional) NPU optimizations
+  - Vectorize string index further
+  - Use parallel_lookup for structural index
+- [ ] Add e2e tests for full system
+- [ ] Set up fancy developer tooling
   - Set up linters
     - `clangd-format` or/and `clangd-tidy` for C++
     - Python: linter and type checking
     - Shellcheck
-  - Add license & header to all source files (script)
-- [ ] Create thesis project on Overleaf, rough outline of chapters (or just the chapters relevant now)
+  - [ ] Add license & header to all source files (script)
+  - [ ] Clean up meson build files (git stash)
