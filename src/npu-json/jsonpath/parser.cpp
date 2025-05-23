@@ -1,6 +1,5 @@
 #include <string>
 #include <format>
-#include <iostream>
 
 #include <npu-json/jsonpath/lexer.hpp>
 #include <npu-json/error.hpp>
@@ -43,7 +42,6 @@ std::string token_type_name(TokenType type) {
 
 Segment Parser::parse_segment(Lexer & lexer) {
   auto token = lexer.consume();
-  std::cout << "parse_segment: " << token_type_name(token.type) << std::endl;
   switch (token.type) {
     case TokenType::Member: {
       auto next_token = lexer.peek();
@@ -70,7 +68,6 @@ Segment Parser::parse_segment(Lexer & lexer) {
 
 Segment Parser::parse_member_segment(Lexer & lexer) {
   auto token = lexer.consume();
-  std::cout << "parse_member_segment: " << token_type_name(token.type) << std::endl;
   switch (token.type) {
     case TokenType::Name: {
       return segments::Member { token.text };
@@ -86,7 +83,6 @@ Segment Parser::parse_member_segment(Lexer & lexer) {
 
 Segment Parser::parse_descendant_segment(Lexer & lexer) {
   auto token = lexer.consume();
-  std::cout << "parse_descendant_segment: " << token_type_name(token.type) << std::endl;
   switch (token.type) {
     case TokenType::Name: {
       return segments::Descendant { token.text };
@@ -99,7 +95,6 @@ Segment Parser::parse_descendant_segment(Lexer & lexer) {
 
 Segment Parser::parse_selector_segment(Lexer & lexer) {
   auto token = lexer.consume();
-  std::cout << "parse_selector_segment: " << token_type_name(token.type) << std::endl;
   switch (token.type) {
     case TokenType::Number: {
       return segments::Index { std::stol(token.text) };

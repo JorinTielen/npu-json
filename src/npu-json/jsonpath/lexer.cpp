@@ -1,6 +1,5 @@
 #include <cctype>
 #include <format>
-#include <iostream>
 
 #include <npu-json/error.hpp>
 
@@ -16,22 +15,18 @@ Token Lexer::consume() {
   if (peeked_token.has_value()) {
     auto token = peeked_token.value();
     peeked_token.reset();
-    std::cout << "Lexer::consume(): " << token.text << std::endl;
     return token;
   }
 
   auto token = next_token();
-  std::cout << "Lexer::consume(): " << token.text << std::endl;
   return token;
 }
 
 Token Lexer::peek() {
   if (peeked_token.has_value()) {
-    std::cout << "Lexer::peek(): " << peeked_token.value().text << std::endl;
     return peeked_token.value();
   }
   auto token = next_token();
-  std::cout << "Lexer::peek(): " << token.text << std::endl;
   peeked_token.emplace(token);
   return peeked_token.value();
 }
