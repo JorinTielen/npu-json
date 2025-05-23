@@ -72,23 +72,10 @@ private:
   bool current_matched_key_at_depth = false;
 
   // State implementations
-  void handle_open_structure(
-    StructureType structure_type,
-    std::optional<StructuralCharacter> initial_structural_character
-  );
-  void handle_find_key(
-    const std::string &json,
-    const std::string &search_key,
-    std::optional<StructuralCharacter> initial_structural_character
-  );
-  void handle_wildcard(
-    std::optional<StructuralCharacter> initial_structural_character
-  );
-  void handle_record_result(
-    const std::string &json,
-    ResultSet &result_set,
-    std::optional<StructuralCharacter> initial_structural_character
-  );
+  void handle_open_structure(StructureType structure_type);
+  void handle_find_key(const std::string &json, const std::string &search_key);
+  void handle_wildcard();
+  void handle_record_result(ResultSet &result_set);
 
   // State movement functions
   void advance();
