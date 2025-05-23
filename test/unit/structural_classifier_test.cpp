@@ -1,5 +1,6 @@
 #include <array>
 #include <algorithm>
+#include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -9,7 +10,6 @@
 
 #include <npu-json/structural/classifier.hpp>
 #include <npu-json/engine.hpp>
-#include <npu-json/util/debug.hpp>
 
 
 // Helper to write a JSON string into a vector block at the end for easy testing
@@ -50,20 +50,12 @@ TEST_CASE("recognizes all types of structural characters") {
 
   write_string_into_block_end(block, json);
 
-  std::cout << "block: ";
-  for (size_t i = 0; i < block.size(); i++) {
-    std::cout << block[i];
-  }
-  std::cout << std::endl;
-
   auto classifier = structural::Classifier();
   classifier.toggle_colons_and_commas();
 
   auto block_ptr = reinterpret_cast<const char *>(block.data());
 
   auto structurals = classifier.classify_block(block_ptr);
-
-  print_structural_classifier_block(structurals);
 
   REQUIRE(structural_block_is_equal_to_bits(structurals, "1000100001000010111"));
 }

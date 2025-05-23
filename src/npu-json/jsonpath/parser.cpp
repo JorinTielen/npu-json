@@ -47,7 +47,13 @@ Segment Parser::parse_segment(Lexer & lexer) {
       auto next_token = lexer.peek();
       if (next_token.type == TokenType::OpenBracket) {
         lexer.consume();
-        return parse_selector_segment(lexer);
+        auto segment = parse_selector_segment(lexer);
+        auto next_token = lexer.consume();
+        expect(next_token, TokenType::CloseBracket);
+        return segment;
+      }
+      if (next_token.type == TokenType::Wildcard) {
+        return segments::Wildcard {};
       }
       return parse_member_segment(lexer);
     }

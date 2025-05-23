@@ -1,6 +1,7 @@
 # Build & run unit tests (CPU side)
 test_files = [
   'unit/escape_carry_index_test.cpp',
+  'unit/jsonpath_parser_test.cpp',
   'unit/structural_classifier_test.cpp',
   'util/test-iterator.cpp',
 ]
