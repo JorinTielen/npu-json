@@ -7,7 +7,7 @@
   - [ ] Rough outline of chapters
 - [ ] Implement proper results gathering
 - [ ] Update performance measurements sheet
-- [ ] Packed struct for structural character
+- [X] Packed struct for structural character
   - [ ] Tagged 32-bit integer for structural character
 - [ ] Add support for index + index range to automaton
 - [ ] (Optional) Debug + add unit tests for queue
