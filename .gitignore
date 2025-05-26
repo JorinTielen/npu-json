@@ -11,3 +11,7 @@ setup_vitis.sh
 
 # ClangD cache
 .cache/
+
+# Tracing
+/*.pdf
+/*.csv
