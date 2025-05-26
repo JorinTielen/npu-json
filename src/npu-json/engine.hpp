@@ -67,7 +67,7 @@ private:
   size_t current_instruction_pointer = 0;
   size_t current_depth = 0;
   StructureType current_structure_type;
-  std::optional<StructuralCharacter> previous_structural;
+  std::optional<StructuralCharacter*> previous_structural;
 
   bool current_matched_key_at_depth = false;
 
@@ -80,16 +80,16 @@ private:
   // State movement functions
   void advance();
   void fallback();
-  void abort(StructuralCharacter structural_character);
+  void abort(StructuralCharacter* structural_character);
   void back();
 
   // Helper functions
   void enter(StructureType structure_type);
   void exit(StructureType structure_type);
   void restore_state_from_stack(StackFrame &frame);
-  void pass_structural(StructuralCharacter structural_character);
-  std::optional<StructuralCharacter> passed_previous_structural();
+  void pass_structural(StructuralCharacter* structural_character);
+  std::optional<StructuralCharacter*> passed_previous_structural();
   size_t calculate_query_depth();
 
-  StructuralCharacter skip_current_structure(StructureType structure_type);
+  StructuralCharacter* skip_current_structure(StructureType structure_type);
 };

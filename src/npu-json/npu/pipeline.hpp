@@ -27,6 +27,9 @@ public:
 
   // Gives a pointer to the next structural character, and consumes it.
   StructuralCharacter* get_next_structural_character();
+
+  StructuralCharacter* get_chunk_structural_index_end_ptr();
+  void set_chunk_structural_pos(StructuralCharacter *pos);
 private:
   const std::string *json = nullptr;
 

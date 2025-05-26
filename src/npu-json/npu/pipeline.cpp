@@ -101,6 +101,14 @@ StructuralCharacter* PipelinedIterator::get_next_structural_character() {
   return next_potential_structural;
 }
 
+StructuralCharacter* PipelinedIterator::get_chunk_structural_index_end_ptr() {
+  return &index->structural_characters[index->structurals_count];
+}
+
+void PipelinedIterator::set_chunk_structural_pos(StructuralCharacter *pos) {
+  current_pos_in_chunk = pos + 1 - index->structural_characters.data();
+}
+
 StructuralCharacter* PipelinedIterator::get_next_structural_character_in_chunk() {
   if (current_pos_in_chunk < index->structurals_count) {
     auto ptr = &index->structural_characters[current_pos_in_chunk];
@@ -110,7 +118,6 @@ StructuralCharacter* PipelinedIterator::get_next_structural_character_in_chunk()
 
   return nullptr;
 }
-
 
 void PipelinedIndexer::index_chunk(ChunkIndex *index, std::function<void()> callback) {
   if (chunk_idx >= json->length()) {

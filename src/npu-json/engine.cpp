@@ -80,7 +80,7 @@ std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
 void Engine::handle_open_structure(StructureType structure_type) {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
-    ? &initial_structural_character.value()
+    ? initial_structural_character.value()
     : iterator->get_next_structural_character();
 
   if (structural_character == nullptr) {
@@ -88,6 +88,8 @@ void Engine::handle_open_structure(StructureType structure_type) {
   }
 
   auto query_depth = calculate_query_depth();
+
+  auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
 
   while (structural_character != nullptr) {
     // std::cout << "  current_depth: " << current_depth << std::endl;
@@ -102,6 +104,7 @@ void Engine::handle_open_structure(StructureType structure_type) {
         } else {
           fallback();
         }
+        iterator->set_chunk_structural_pos(structural_character);
         return;
       }
       case '[': {
@@ -111,6 +114,7 @@ void Engine::handle_open_structure(StructureType structure_type) {
         } else {
           fallback();
         }
+        iterator->set_chunk_structural_pos(structural_character);
         return;
       }
       case '}':
@@ -124,8 +128,9 @@ void Engine::handle_open_structure(StructureType structure_type) {
           exit(structural_character->c == '}' ? StructureType::Object : StructureType::Array);
           back();
         } else {
-          abort(*structural_character);
+          abort(structural_character);
         }
+        iterator->set_chunk_structural_pos(structural_character);
         return;
       }
       case ':': {
@@ -138,11 +143,20 @@ void Engine::handle_open_structure(StructureType structure_type) {
       }
       case ',': {
         back();
+        iterator->set_chunk_structural_pos(structural_character);
         return;
       }
     }
 
-    structural_character = iterator->get_next_structural_character();
+    if (structural_character < structurals_end - 1) {
+      structural_character++;
+    } else {
+      iterator->set_chunk_structural_pos(structurals_end);
+      structural_character = iterator->get_next_structural_character();
+      if (structural_character != nullptr) {
+        structurals_end = iterator->get_chunk_structural_index_end_ptr();
+      }
+    }
   }
 }
 
@@ -189,7 +203,7 @@ void Engine::handle_find_key(
 ) {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
-    ? &initial_structural_character.value()
+    ? initial_structural_character.value()
     : iterator->get_next_structural_character();
 
   if (structural_character == nullptr) {
@@ -197,6 +211,8 @@ void Engine::handle_find_key(
   }
 
   auto query_depth = calculate_query_depth();
+
+  auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
 
   // Make sure we didn't come back through an abort when tail-skipping
   if (current_matched_key_at_depth && initial_structural_character.has_value()) {
@@ -208,10 +224,9 @@ void Engine::handle_find_key(
   }
 
   while (structural_character != nullptr) {
-    auto& s = *structural_character;
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
-    switch (s.c) {
+    switch (structural_character->c) {
       case '{':
       case '[':
         current_depth++;
@@ -221,7 +236,8 @@ void Engine::handle_find_key(
         if (current_depth == query_depth) {
           // We matched no keys and reached the end of the object, so we abort.
           // std::cout << "  abort()" << std::endl;
-          abort(s);
+          abort(structural_character);
+          iterator->set_chunk_structural_pos(structural_character);
           return;
         } else {
           current_depth--;
@@ -233,12 +249,13 @@ void Engine::handle_find_key(
         if (current_depth == query_depth) {
           // Match the key before the colon
           // std::cout << "  check_key_match()" << std::endl;
-          auto matched = check_key_match(json, s.pos, search_key);
+          auto matched = check_key_match(json, structural_character->pos, search_key);
           if (matched) {
             // std::cout << "  advance()" << std::endl;
             current_matched_key_at_depth = true;
-            pass_structural(s);
+            pass_structural(structural_character);
             advance();
+            iterator->set_chunk_structural_pos(structural_character);
             return;
           }
         }
@@ -251,14 +268,22 @@ void Engine::handle_find_key(
         __builtin_unreachable();
     }
 
-    structural_character = iterator->get_next_structural_character();
+    if (structural_character < structurals_end - 1) {
+      structural_character++;
+    } else {
+      iterator->set_chunk_structural_pos(structurals_end);
+      structural_character = iterator->get_next_structural_character();
+      if (structural_character != nullptr) {
+        structurals_end = iterator->get_chunk_structural_index_end_ptr();
+      }
+    }
   }
 }
 
 void Engine::handle_wildcard() {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
-    ? &initial_structural_character.value()
+    ? initial_structural_character.value()
     : iterator->get_next_structural_character();
 
   if (structural_character == nullptr) {
@@ -266,6 +291,8 @@ void Engine::handle_wildcard() {
   }
 
   auto query_depth = calculate_query_depth();
+
+  auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
 
   while (structural_character != nullptr) {
     // std::cout << "  structural_character: " << s.c << std::endl;
@@ -279,6 +306,7 @@ void Engine::handle_wildcard() {
       case '[': {
         enter(StructureType::Array);
         advance();
+        iterator->set_chunk_structural_pos(structural_character);
         return;
       }
       case '}':
@@ -292,8 +320,9 @@ void Engine::handle_wildcard() {
           exit(structural_character->c == '{' ? StructureType::Object : StructureType::Array);
           back();
         } else {
-          abort(*structural_character);
+          abort(structural_character);
         }
+        iterator->set_chunk_structural_pos(structural_character);
         return;
       }
       case ':': {
@@ -301,6 +330,7 @@ void Engine::handle_wildcard() {
         if (current_depth == query_depth + 1) {
           if (current_structure_type == StructureType::Object) {
             advance();
+            iterator->set_chunk_structural_pos(structural_character);
             return;
           } else {
             throw EngineError("Unexpected colon in array");
@@ -315,6 +345,7 @@ void Engine::handle_wildcard() {
         if (current_depth == query_depth) {
           if (current_structure_type == StructureType::Array) {
             advance();
+            iterator->set_chunk_structural_pos(structural_character);
             return;
           }
         }
@@ -324,14 +355,22 @@ void Engine::handle_wildcard() {
         __builtin_unreachable();
     }
 
-    structural_character = iterator->get_next_structural_character();
+    if (structural_character < structurals_end - 1) {
+      structural_character++;
+    } else {
+      iterator->set_chunk_structural_pos(structurals_end);
+      structural_character = iterator->get_next_structural_character();
+      if (structural_character != nullptr) {
+        structurals_end = iterator->get_chunk_structural_index_end_ptr();
+      }
+    }
   }
 }
 
 void Engine::handle_record_result(ResultSet &result_set) {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
-    ? &initial_structural_character.value()
+    ? initial_structural_character.value()
     : iterator->get_next_structural_character();
 
   if (structural_character == nullptr) {
@@ -340,6 +379,8 @@ void Engine::handle_record_result(ResultSet &result_set) {
 
   auto start_pos = structural_character->pos;
   auto query_depth = calculate_query_depth();
+
+  auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
 
   while (structural_character != nullptr) {
     // std::cout << "  current_depth: " << current_depth << std::endl;
@@ -358,7 +399,8 @@ void Engine::handle_record_result(ResultSet &result_set) {
           // std::cout << "  record_result()" << std::endl;
           result_set.record_result(start_pos + 1, structural_character->pos - 1);
           // std::cout << "  abort()" << std::endl;
-          abort(*structural_character);
+          abort(structural_character);
+          iterator->set_chunk_structural_pos(structural_character);
           return;
         } else {
           current_depth--;
@@ -376,13 +418,22 @@ void Engine::handle_record_result(ResultSet &result_set) {
           result_set.record_result(start_pos + 1, structural_character->pos - 1);
           // std::cout << "  back()" << std::endl;
           back();
+          iterator->set_chunk_structural_pos(structural_character);
           return;
         }
         break;
       }
     }
 
-    structural_character = iterator->get_next_structural_character();
+    if (structural_character < structurals_end - 1) {
+      structural_character++;
+    } else {
+      iterator->set_chunk_structural_pos(structurals_end);
+      structural_character = iterator->get_next_structural_character();
+      if (structural_character != nullptr) {
+        structurals_end = iterator->get_chunk_structural_index_end_ptr();
+      }
+    }
   }
 }
 
@@ -411,7 +462,7 @@ void Engine::fallback() {
 }
 
 // Exit the current state, allowing the previous state to handle the current token.
-void Engine::abort(StructuralCharacter structural_character) {
+void Engine::abort(StructuralCharacter* structural_character) {
   // std::cout << "    " << structural_character.c << std::endl;
   pass_structural(structural_character);
 
@@ -455,18 +506,18 @@ void Engine::restore_state_from_stack(StackFrame &frame) {
 }
 
 // Pass a structural character to the next engine state.
-void Engine::pass_structural(StructuralCharacter structural_character) {
-  previous_structural = std::optional<StructuralCharacter>(structural_character);
+void Engine::pass_structural(StructuralCharacter* structural_character) {
+  previous_structural = std::optional<StructuralCharacter*>(structural_character);
 }
 
 // Retrieve the passed structural character from the previous state, if there is one.
-std::optional<StructuralCharacter> Engine::passed_previous_structural() {
+std::optional<StructuralCharacter*> Engine::passed_previous_structural() {
   if (previous_structural.has_value()) {
     auto s = previous_structural.value();
-    previous_structural = std::optional<StructuralCharacter>();
-    return std::optional<StructuralCharacter>(s);
+    previous_structural = std::optional<StructuralCharacter*>();
+    return std::optional<StructuralCharacter*>(s);
   } else {
-    return std::optional<StructuralCharacter>();
+    return std::optional<StructuralCharacter*>();
   }
 }
 
@@ -490,9 +541,7 @@ size_t Engine::calculate_query_depth() {
 }
 
 // Skip the current JSON structure.
-StructuralCharacter Engine::skip_current_structure(
-  StructureType structure_type
-) {
+StructuralCharacter* Engine::skip_current_structure(StructureType structure_type) {
   size_t skip_depth = current_depth;
 
   StructuralCharacter* structural_character = nullptr;
@@ -532,5 +581,5 @@ StructuralCharacter Engine::skip_current_structure(
     throw EngineError("Unbalanced JSON structures");
   }
 
-  return *structural_character;
+  return structural_character;
 }
