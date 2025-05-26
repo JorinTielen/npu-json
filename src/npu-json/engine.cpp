@@ -197,10 +197,7 @@ bool is_closing_structural(char structural) {
   }
 }
 
-void Engine::handle_find_key(
-  const std::string &json,
-  const std::string &search_key
-) {
+void Engine::handle_find_key(const std::string &json, const std::string &search_key) {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
     ? initial_structural_character.value()
@@ -423,6 +420,8 @@ void Engine::handle_record_result(ResultSet &result_set) {
         }
         break;
       }
+      default:
+        __builtin_unreachable();
     }
 
     if (structural_character < structurals_end - 1) {
@@ -544,11 +543,15 @@ size_t Engine::calculate_query_depth() {
 StructuralCharacter* Engine::skip_current_structure(StructureType structure_type) {
   size_t skip_depth = current_depth;
 
-  StructuralCharacter* structural_character = nullptr;
-  while (skip_depth >= current_depth) {
-    structural_character = iterator->get_next_structural_character();
-    if (structural_character == nullptr) throw EngineError("Unexpected end of JSON");
+  auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
 
+  StructuralCharacter* structural_character = iterator->get_next_structural_character();
+
+  if (structural_character == nullptr) {
+    throw EngineError("Unexpected end of JSON");
+  }
+
+  while (skip_depth >= current_depth) {
     switch (structural_character->c) {
       case '{':
         skip_depth++;
@@ -569,11 +572,20 @@ StructuralCharacter* Engine::skip_current_structure(StructureType structure_type
       default:
         __builtin_unreachable();
     }
+
+    if (structural_character < structurals_end - 1) {
+      structural_character++;
+    } else {
+      iterator->set_chunk_structural_pos(structurals_end);
+      structural_character = iterator->get_next_structural_character();
+      if (structural_character != nullptr) {
+        structurals_end = iterator->get_chunk_structural_index_end_ptr();
+      } else {
+        throw EngineError("Unexpected end of JSON");
+      }
+    }
   }
 
-  if (structural_character == nullptr) {
-    throw EngineError("Unexpected end of JSON");
-  }
 
   // TODO: Remove check if slow
   if ((structure_type == StructureType::Object && structural_character->c != '}') ||
