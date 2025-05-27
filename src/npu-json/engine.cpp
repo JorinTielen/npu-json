@@ -39,29 +39,28 @@ std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
     switch (current_instruction.opcode) {
       case Opcode::OpenObject: {
         // std::cout << "OpenObject" << std::endl;
-        handle_open_structure(*json, StructureType::Object);
+        handle_open_structure(json->c_str(), StructureType::Object);
         break;
       }
       case Opcode::OpenArray: {
         // std::cout << "OpenArray" << std::endl;
-        handle_open_structure(*json, StructureType::Array);
+        handle_open_structure(json->c_str(), StructureType::Array);
         break;
       }
       case Opcode::FindKey: {
         // std::cout << "FindKey" << std::endl;
         assert(current_instruction.search_key.has_value());
-        handle_find_key(*json, current_instruction.search_key.value()
-        );
+        handle_find_key(json->c_str(), current_instruction.search_key.value());
         break;
       }
       case Opcode::WildCard: {
         // std::cout << "WildCard" << std::endl;
-        handle_wildcard(*json);
+        handle_wildcard(json->c_str());
         break;
       }
       case Opcode::RecordResult: {
         // std::cout << "RecordResult" << std::endl;
-        handle_record_result(*json, *result_set.get());
+        handle_record_result(json->c_str(), *result_set.get());
         break;
       }
       default:
@@ -77,7 +76,7 @@ std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
   return result_set;
 }
 
-void Engine::handle_open_structure(const std::string &json, StructureType structure_type) {
+void Engine::handle_open_structure(const char *const json, StructureType structure_type) {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
     ? initial_structural_character.value()
@@ -162,7 +161,7 @@ void Engine::handle_open_structure(const std::string &json, StructureType struct
   }
 }
 
-bool check_key_match(const std::string &json, size_t colon_position, const std::string &search_key) {
+bool check_key_match(const char *const json, size_t colon_position, const std::string_view search_key) {
   // {"a" : 1 }
   // 0123456789
   //    ^
@@ -181,8 +180,8 @@ bool check_key_match(const std::string &json, size_t colon_position, const std::
   if (json[start_position] != search_key[0]) return false;
 
   auto match = memcmp(
-    json.c_str() + start_position,
-    search_key.c_str(),
+    json + start_position,
+    search_key.data(),
     search_key.length()
   );
 
@@ -199,7 +198,7 @@ bool is_closing_structural(char structural) {
   }
 }
 
-void Engine::handle_find_key(const std::string &json, const std::string &search_key) {
+void Engine::handle_find_key(const char *const json, const std::string_view search_key) {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
     ? initial_structural_character.value()
@@ -279,7 +278,7 @@ void Engine::handle_find_key(const std::string &json, const std::string &search_
   }
 }
 
-void Engine::handle_wildcard(const std::string &json) {
+void Engine::handle_wildcard(const char *const json) {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
     ? initial_structural_character.value()
@@ -366,7 +365,7 @@ void Engine::handle_wildcard(const std::string &json) {
   }
 }
 
-void Engine::handle_record_result(const std::string &json, ResultSet &result_set) {
+void Engine::handle_record_result(const char *const json, ResultSet &result_set) {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
     ? initial_structural_character.value()
@@ -453,7 +452,7 @@ void Engine::advance() {
 }
 
 // Exit the current state, tail-skipping to to end of the structure.
-void Engine::fallback(const std::string &json) {
+void Engine::fallback(const char *const json) {
   assert(!stack.empty());
 
   auto last_structural = skip_current_structure(json, current_structure_type);
@@ -542,7 +541,7 @@ size_t Engine::calculate_query_depth() {
 }
 
 // Skip the current JSON structure.
-uint32_t* Engine::skip_current_structure(const std::string &json, StructureType structure_type) {
+uint32_t* Engine::skip_current_structure(const char *const json, StructureType structure_type) {
   size_t skip_depth = current_depth;
 
   auto structurals_end = iterator->get_chunk_structural_index_end_ptr();

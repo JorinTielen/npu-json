@@ -72,14 +72,14 @@ private:
   bool current_matched_key_at_depth = false;
 
   // State implementations
-  void handle_open_structure(const std::string &json, StructureType structure_type);
-  void handle_find_key(const std::string &json, const std::string &search_key);
-  void handle_wildcard(const std::string &json);
-  void handle_record_result(const std::string &json, ResultSet &result_set);
+  void handle_open_structure(const char *const json, StructureType structure_type);
+  void handle_find_key(const char *const json, const std::string_view search_key);
+  void handle_wildcard(const char *const json);
+  void handle_record_result(const char *const json, ResultSet &result_set);
 
   // State movement functions
   void advance();
-  void fallback(const std::string &json);
+  void fallback(const char *const json);
   void abort(uint32_t* structural_character);
   void back();
 
@@ -91,5 +91,5 @@ private:
   std::optional<uint32_t*> passed_previous_structural();
   size_t calculate_query_depth();
 
-  uint32_t* skip_current_structure(const std::string &json, StructureType structure_type);
+  uint32_t* skip_current_structure(const char *const json, StructureType structure_type);
 };
