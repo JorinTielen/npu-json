@@ -172,7 +172,7 @@ bool check_key_match(const std::string &json, size_t colon_position, const std::
     current_position--;
   }
 
-  if (current_position + 2 < search_key.length()) return false;
+  if (current_position < search_key.length() + 2) return false;
 
   size_t start_position = current_position - search_key.length();
 
