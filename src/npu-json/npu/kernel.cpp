@@ -79,8 +79,12 @@ void build_character_index(const char *block, uint64_t *index, size_t n) {
   }
 }
 
-inline uint64_t trailing_zeroes(uint64_t mask) {
+__attribute__((always_inline)) inline uint64_t trailing_zeroes(uint64_t mask) {
   return __builtin_ctzll(mask);
+}
+
+__attribute__((always_inline)) inline uint64_t clear_lowest_bit(uint64_t mask) {
+  return _blsr_u64(mask);
 }
 
 void construct_escape_carry_index(const char *chunk, ChunkIndex &index, bool first_escape_carry) {
@@ -175,7 +179,7 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
       uint32_t structural_idx = (i * N) + trailing_zeroes(nonquoted_structural);
       *tail++ = { chunk[structural_idx], structural_idx + uint32_t(chunk_idx) };
       index.structurals_count++;
-      nonquoted_structural = nonquoted_structural & (nonquoted_structural - 1);
+      nonquoted_structural = clear_lowest_bit(nonquoted_structural);
     }
   }
 
