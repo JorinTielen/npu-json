@@ -67,29 +67,29 @@ private:
   size_t current_instruction_pointer = 0;
   size_t current_depth = 0;
   StructureType current_structure_type;
-  std::optional<StructuralCharacter*> previous_structural;
+  std::optional<uint32_t*> previous_structural;
 
   bool current_matched_key_at_depth = false;
 
   // State implementations
-  void handle_open_structure(StructureType structure_type);
+  void handle_open_structure(const std::string &json, StructureType structure_type);
   void handle_find_key(const std::string &json, const std::string &search_key);
-  void handle_wildcard();
-  void handle_record_result(ResultSet &result_set);
+  void handle_wildcard(const std::string &json);
+  void handle_record_result(const std::string &json, ResultSet &result_set);
 
   // State movement functions
   void advance();
-  void fallback();
-  void abort(StructuralCharacter* structural_character);
+  void fallback(const std::string &json);
+  void abort(uint32_t* structural_character);
   void back();
 
   // Helper functions
   void enter(StructureType structure_type);
   void exit(StructureType structure_type);
   void restore_state_from_stack(StackFrame &frame);
-  void pass_structural(StructuralCharacter* structural_character);
-  std::optional<StructuralCharacter*> passed_previous_structural();
+  void pass_structural(uint32_t* structural_character);
+  std::optional<uint32_t*> passed_previous_structural();
   size_t calculate_query_depth();
 
-  StructuralCharacter* skip_current_structure(StructureType structure_type);
+  uint32_t* skip_current_structure(const std::string &json, StructureType structure_type);
 };

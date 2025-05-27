@@ -20,7 +20,7 @@ struct ChunkIndex {
   std::array<uint64_t, CHUNK_BIT_INDEX_SIZE / 8> string_index;
   // The structural character index of the current block.
   // At a maximum all characters (bytes) in the chunk are a structural.
-  std::array<StructuralCharacter, Engine::CHUNK_SIZE> structural_characters;
+  std::array<uint32_t, Engine::CHUNK_SIZE> structural_characters;
   size_t structurals_count = 0;
 
   inline bool ends_in_string() {

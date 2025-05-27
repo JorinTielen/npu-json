@@ -77,13 +77,12 @@ bool PipelinedIterator::switch_to_next_chunk() {
   return true;
 }
 
-StructuralCharacter* PipelinedIterator::get_next_structural_character() {
+uint32_t* PipelinedIterator::get_next_structural_character() {
   if (index == nullptr) switch_to_next_chunk();
 
   // Return potential next structural character in the current chunk if there is one.
   auto potential_structural = get_next_structural_character_in_chunk();
   if (potential_structural != nullptr) {
-    assert(potential_structural->c == json->at(potential_structural->pos));
     return potential_structural;
   }
 
@@ -95,21 +94,18 @@ StructuralCharacter* PipelinedIterator::get_next_structural_character() {
 
   // Return structural from next chunk.
   auto next_potential_structural = get_next_structural_character_in_chunk();
-  if (next_potential_structural != nullptr) {
-    assert(next_potential_structural->c == json->at(next_potential_structural->pos));
-  }
   return next_potential_structural;
 }
 
-StructuralCharacter* PipelinedIterator::get_chunk_structural_index_end_ptr() {
+uint32_t* PipelinedIterator::get_chunk_structural_index_end_ptr() {
   return &index->structural_characters[index->structurals_count];
 }
 
-void PipelinedIterator::set_chunk_structural_pos(StructuralCharacter *pos) {
+void PipelinedIterator::set_chunk_structural_pos(uint32_t *pos) {
   current_pos_in_chunk = pos + 1 - index->structural_characters.data();
 }
 
-StructuralCharacter* PipelinedIterator::get_next_structural_character_in_chunk() {
+uint32_t* PipelinedIterator::get_next_structural_character_in_chunk() {
   if (current_pos_in_chunk < index->structurals_count) {
     auto ptr = &index->structural_characters[current_pos_in_chunk];
     current_pos_in_chunk++;

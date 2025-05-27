@@ -26,10 +26,10 @@ public:
   void reset();
 
   // Gives a pointer to the next structural character, and consumes it.
-  StructuralCharacter* get_next_structural_character();
+  uint32_t* get_next_structural_character();
 
-  StructuralCharacter* get_chunk_structural_index_end_ptr();
-  void set_chunk_structural_pos(StructuralCharacter *pos);
+  uint32_t* get_chunk_structural_index_end_ptr();
+  void set_chunk_structural_pos(uint32_t *pos);
 private:
   const std::string *json = nullptr;
 
@@ -43,7 +43,7 @@ private:
   std::size_t current_pos_in_chunk = 0;
 
   bool switch_to_next_chunk();
-  StructuralCharacter* get_next_structural_character_in_chunk();
+  uint32_t* get_next_structural_character_in_chunk();
 };
 
 // New implementation of the indexer, aiming to keep the NPU busy 100% of the time

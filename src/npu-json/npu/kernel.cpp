@@ -177,7 +177,7 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
 
     while (nonquoted_structural) {
       uint32_t structural_idx = (i * N) + trailing_zeroes(nonquoted_structural);
-      *tail++ = { chunk[structural_idx], structural_idx + uint32_t(chunk_idx) };
+      *tail++ = structural_idx + uint32_t(chunk_idx);
       index.structurals_count++;
       nonquoted_structural = clear_lowest_bit(nonquoted_structural);
     }
