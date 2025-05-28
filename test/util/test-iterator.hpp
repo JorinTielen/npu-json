@@ -7,7 +7,7 @@
 class TestIterator {
 public:
   TestIterator(npu::ChunkIndex & chunk_index);
-  StructuralCharacter * get_next_structural_character();
+  uint32_t * get_next_structural_character();
 private:
   npu::ChunkIndex & index;
   std::size_t current_pos_in_chunk = 0;
