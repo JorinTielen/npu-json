@@ -14,8 +14,8 @@
 void run_bench(std::string &data, Engine &engine) {
   std::cout << "Starting benchmark..." << std::endl;
 
-  constexpr size_t WARMUP_ITERS = 3;
-  constexpr size_t BENCH_ITERS = 10;
+  constexpr size_t WARMUP_ITERS = 25;
+  constexpr size_t BENCH_ITERS = 100;
 
   for (size_t i = 0; i < WARMUP_ITERS; i++) {
     engine.run_query_on(&data);
@@ -56,13 +56,13 @@ int main(int argc, char *argv[]) {
   }
 
   bool bench = false;
-  if ((argc == 4 && std::string(argv[3]) == "--bench") ||
+  if ((argc >= 4 && std::string(argv[3]) == "--bench") ||
       (argc == 5 && std::string(argv[4]) == "--bench")) {
     bench = true;
   }
 
   bool trace = false;
-  if ((argc == 4 && std::string(argv[3]) == "--trace") ||
+  if ((argc >= 4 && std::string(argv[3]) == "--trace") ||
       (argc == 5 && std::string(argv[4]) == "--trace")) {
     trace = true;
   }
