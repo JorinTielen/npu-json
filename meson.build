@@ -21,6 +21,7 @@ project_source_files = [
 
 project_dependencies = [
   dependency('xrt'),
+  dependency('openmp'),
 ]
 
 project_include_directories = [

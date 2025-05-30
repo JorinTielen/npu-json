@@ -40,10 +40,13 @@ private:
   std::unique_ptr<Kernel> kernel;
 
   std::size_t chunk_idx = 0;
-  std::size_t current_pos_in_chunk = 0;
+
+  std::size_t current_block = 0;
+  std::size_t current_pos_in_block = 0;
 
   bool switch_to_next_chunk();
   uint32_t* get_next_structural_character_in_chunk();
+  uint32_t* get_next_structural_character_in_block();
 };
 
 // New implementation of the indexer, aiming to keep the NPU busy 100% of the time

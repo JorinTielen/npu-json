@@ -166,20 +166,27 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
 
   // Convert strurctural bit-index into structural character stream
   constexpr const size_t N = 64;
-  index.structurals_count = 0;
 
-  auto tail = index.structural_characters.data();
-  auto structural_index_buf = structural_buffers[!current].output.map<uint64_t *>();
-  for (size_t i = 0; i < CHUNK_BIT_INDEX_SIZE / 8; i++) {
-    auto nonquoted_structural = structural_index_buf[i];
+  #pragma omp parallel for num_threads(4)
+  for (size_t block = 0; block < StructuralCharacterBlock::BLOCKS_PER_CHUNK; block++) {
+    auto structural_index_buf = structural_buffers[!current].output.map<uint64_t *>();
+    auto tail = index.blocks[block].structural_characters.data();
+    index.blocks[block].structural_characters_count = 0;
+    constexpr auto total_size = CHUNK_BIT_INDEX_SIZE / 8;
+    constexpr auto blocks_per_chunk = StructuralCharacterBlock::BLOCKS_PER_CHUNK;
+    constexpr auto block_index_size = total_size / blocks_per_chunk;
+    for (size_t i = 0; i < block_index_size; i++) {
+      auto pos = i + block * block_index_size;
+      auto nonquoted_structural = structural_index_buf[pos];
 
-    nonquoted_structural = nonquoted_structural & ~index.string_index[i];
+      nonquoted_structural = nonquoted_structural & ~index.string_index[pos];
 
-    while (nonquoted_structural) {
-      uint32_t structural_idx = (i * N) + trailing_zeroes(nonquoted_structural);
-      *tail++ = structural_idx + uint32_t(chunk_idx);
-      index.structurals_count++;
-      nonquoted_structural = clear_lowest_bit(nonquoted_structural);
+      while (nonquoted_structural) {
+        uint32_t structural_idx = (pos * N) + trailing_zeroes(nonquoted_structural);
+        *tail++ = structural_idx + uint32_t(chunk_idx);
+        index.blocks[block].structural_characters_count++;
+        nonquoted_structural = clear_lowest_bit(nonquoted_structural);
+      }
     }
   }
 
