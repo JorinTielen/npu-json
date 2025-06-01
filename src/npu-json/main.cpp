@@ -43,9 +43,9 @@ void run_bench(std::string &data, Engine &engine) {
 
 void run_single(std::string &data, Engine &engine) {
   auto results_set = engine.run_query_on(&data);
-  for (size_t i = 0; i < results_set->get_result_count(); i++) {
-    std::cout << results_set->extract_result(i, data) << std::endl;
-  }
+  // for (size_t i = 0; i < results_set->get_result_count(); i++) {
+  //   std::cout << results_set->extract_result(i, data) << std::endl;
+  // }
   std::cout << "Found " << results_set->get_result_count() << " results!" << std::endl;
 }
 

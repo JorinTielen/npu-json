@@ -45,7 +45,7 @@ def calculate(traces: List[Trace], chunk_size_mb: int) -> dict[str, float]:
 def main():
     parser = argparse.ArgumentParser(prog="plot_trace", description=DESCRIPTION)
     parser.add_argument("-t", "--traces", required=True, type=str, help="CSV file containing traces")
-    parser.add_argument("-s", "--chunk-size", required=True, type=int, help="Chunk size that was used")
+    parser.add_argument("-s", "--chunk-size", required=True, type=float, help="Chunk size that was used")
     args = parser.parse_args()
 
     traces = read_traces_from_csv(args.traces)

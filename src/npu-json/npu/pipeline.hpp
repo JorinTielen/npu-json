@@ -69,8 +69,6 @@ private:
   std::size_t chunk_idx = 0;
   bool chunk_carry_escape = false;
   bool chunk_carry_string = false;
-
-  void construct_escape_carry_index(const char *chunk, ChunkIndex &index);
 };
 
 } // namespace npu

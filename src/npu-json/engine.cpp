@@ -544,9 +544,8 @@ size_t Engine::calculate_query_depth() {
 uint32_t* Engine::skip_current_structure(const char *const json, StructureType structure_type) {
   size_t skip_depth = current_depth;
 
-  auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
-
   uint32_t* structural_character = iterator->get_next_structural_character();
+  auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
 
   if (structural_character == nullptr) {
     throw EngineError("Unexpected end of JSON");
