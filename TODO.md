@@ -1,14 +1,23 @@
 # TODO
 
 - [X] Add unit tests for JSONPath parser
-- [ ] Compile for NPU2 and test on AMD cloud
+- [X] Compile for NPU2 and test on AMD cloud
+- [X] Implement proper results gathering
+- [X] Packed struct for structural character
+  - [-] Tagged 32-bit integer for structural character
+- [X] StructuralCharacter pointer optimization in automaton
+- [X] Optimization of read_kernel_outputs structural loop
+- [X] Parallelization of read_kernel_outputs structural loop
+- [ ] Update performance measurements sheet
+- [ ] Fix twitter bugs for both queries
+  - 0 results for T1
+  - parser crash for T3
+- [ ] (Re-)Measure all remaining combinations
+- [ ] Make nice bar charts in google sheets
 - [ ] Create thesis project on Overleaf
   - [ ] Template
   - [ ] Rough outline of chapters
-- [X] Implement proper results gathering
-- [ ] Update performance measurements sheet
-- [X] Packed struct for structural character
-  - [ ] Tagged 32-bit integer for structural character
+- [ ] Rewrite automaton (flipped loops + switches)
 - [ ] Add support for index + index range to automaton
 - [ ] (Optional) Debug + add unit tests for queue
 - [ ] (Optional) NPU optimizations
