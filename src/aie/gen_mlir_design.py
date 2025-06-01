@@ -26,20 +26,18 @@ def aie_design(kernel_obj: str):
     num_cols = 4
     num_rows = 4
 
-    assert (num_cols == 2) or (num_cols == 4), "Invalid number of columns for combined design"
-
     # Device declaration - aie2 device NPU
     @device(AIEDevice.npu1_4col)
     def device_body():
         data_chunk_ty = np.ndarray[(DATA_CHUNK_SIZE,), np.dtype[np.uint8]]
         data_block_ty = np.ndarray[(DATA_BLOCK_SIZE,), np.dtype[np.uint8]]
-        data_split_ty = np.ndarray[((DATA_BLOCK_SIZE) * num_rows,), np.dtype[np.uint8]]
+        data_split_ty = np.ndarray[((DATA_BLOCK_SIZE) * (num_rows // 2),), np.dtype[np.uint8]]
         string_chunk_ty = np.ndarray[(INDEX_CHUNK_SIZE * 2 + CARRY_CHUNK_SIZE,), np.dtype[np.uint8]]
         string_block_ty = np.ndarray[(INDEX_BLOCK_SIZE * 2 + CARRY_BLOCK_SIZE,), np.dtype[np.uint8]]
-        string_split_ty = np.ndarray[((INDEX_BLOCK_SIZE * 2 + CARRY_BLOCK_SIZE) * num_rows,), np.dtype[np.uint8]]
+        string_split_ty = np.ndarray[((INDEX_BLOCK_SIZE * 2 + CARRY_BLOCK_SIZE) * (num_rows // 2),), np.dtype[np.uint8]]
         index_chunk_ty = np.ndarray[(INDEX_CHUNK_SIZE,), np.dtype[np.uint8]]
         index_block_ty = np.ndarray[(INDEX_BLOCK_SIZE,), np.dtype[np.uint8]]
-        index_split_ty = np.ndarray[(INDEX_BLOCK_SIZE * num_rows,), np.dtype[np.uint8]]
+        index_split_ty = np.ndarray[(INDEX_BLOCK_SIZE * (num_rows // 2),), np.dtype[np.uint8]]
 
         tiles = [
             [tile(col, row) for col in range(0, num_cols)] for row in range(0, num_rows + 2)
@@ -56,26 +54,28 @@ def aie_design(kernel_obj: str):
             "structural_character_index", inputs=[data_block_ty, index_block_ty, np.int32]
         )
 
-        shim_fifos_in = [None] * num_cols
+        shim_fifos_in_string = [None] * num_cols
+        shim_fifos_in_structural = [None] * num_cols
         core_fifos_in = [
             [None for _ in range(0, num_cols)] for _ in range(0, num_rows)
         ]
 
-        shim_fifos_out = [None] * num_cols
+        shim_fifos_out_string = [None] * num_cols
+        shim_fifos_out_structural = [None] * num_cols
         core_fifos_out = [
             [None for _ in range(0, num_cols)] for _ in range(0, num_rows)
         ]
 
-        # Setup FIFOs for string kernel input data (first half of columns)
-        for col in range(0, num_cols // 2):
-            shim_fifos_in[col] = object_fifo(
+        # Setup FIFOs for string kernel input data (first half of rows)
+        for col in range(0, num_cols):
+            shim_fifos_in_string[col] = object_fifo(
                 f"string_in_c{col}_mem",
                 shim_tiles[col],
                 mem_tiles[col],
                 2,
                 string_split_ty
             )
-            for row in range(0, num_rows):
+            for row in range(0, num_rows // 2):
                 core_fifos_in[row][col] = object_fifo(
                     f"string_in_c{col}_r{row}",
                     mem_tiles[col],
@@ -84,22 +84,22 @@ def aie_design(kernel_obj: str):
                     string_block_ty
                 )
             object_fifo_link(
-                shim_fifos_in[col],
-                [core_fifos_in[row][col] for row in range(0, num_rows)],
+                shim_fifos_in_string[col],
+                [core_fifos_in[row][col] for row in range(0, num_rows // 2)],
                 [],
-                [i * (INDEX_BLOCK_SIZE * 2 + CARRY_BLOCK_SIZE) for i in range(0, num_rows)],
+                [i * (INDEX_BLOCK_SIZE * 2 + CARRY_BLOCK_SIZE) for i in range(0, num_rows // 2)],
             )
 
-        # Setup FIFOs for structural kernel input data (second half of columns)
-        for col in range(num_cols // 2, num_cols):
-            shim_fifos_in[col] = object_fifo(
+        # Setup FIFOs for structural kernel input data (second half of rows)
+        for col in range(0, num_cols):
+            shim_fifos_in_structural[col] = object_fifo(
                 f"structural_in_c{col}_mem",
                 shim_tiles[col],
                 mem_tiles[col],
                 2,
                 data_split_ty
             )
-            for row in range(0, num_rows):
+            for row in range(num_rows // 2, num_rows):
                 core_fifos_in[row][col] = object_fifo(
                     f"structural_in_c{col}_r{row}",
                     mem_tiles[col],
@@ -108,22 +108,22 @@ def aie_design(kernel_obj: str):
                     data_block_ty
                 )
             object_fifo_link(
-                shim_fifos_in[col],
-                [core_fifos_in[row][col] for row in range(0, num_rows)],
+                shim_fifos_in_structural[col],
+                [core_fifos_in[row][col] for row in range(num_rows // 2, num_rows)],
                 [],
-                [i * DATA_BLOCK_SIZE for i in range(0, num_rows)],
+                [i * DATA_BLOCK_SIZE for i in range(0, num_rows // 2)],
             )
 
-        # Setup FIFOs for string kernel output (first half of columns)
-        for col in range(0, num_cols // 2):
-            shim_fifos_out[col] = object_fifo(
+        # Setup FIFOs for string kernel output (first half of rows)
+        for col in range(0, num_cols):
+            shim_fifos_out_string[col] = object_fifo(
                 f"string_out_c{col}_mem",
                 mem_tiles[col],
                 shim_tiles[col],
                 2,
                 index_split_ty
             )
-            for row in range(0, num_rows):
+            for row in range(0, num_rows // 2):
                 core_fifos_out[row][col] = object_fifo(
                     f"string_out_c{col}_r{row}",
                     core_tiles[row][col],
@@ -132,22 +132,22 @@ def aie_design(kernel_obj: str):
                     index_block_ty
                 )
             object_fifo_link(
-                [core_fifos_out[row][col] for row in range(0, num_rows)],
-                shim_fifos_out[col],
-                [i * INDEX_BLOCK_SIZE for i in range(0, num_rows)],
+                [core_fifos_out[row][col] for row in range(0, num_rows // 2)],
+                shim_fifos_out_string[col],
+                [i * INDEX_BLOCK_SIZE for i in range(0, num_rows // 2)],
                 []
             )
 
-        # Setup FIFOs for structural kernel output (second half of columns)
-        for col in range(num_cols // 2, num_cols):
-            shim_fifos_out[col] = object_fifo(
+        # Setup FIFOs for structural kernel output (second half of rows)
+        for col in range(0, num_cols):
+            shim_fifos_out_structural[col] = object_fifo(
                 f"structural_out_c{col}_mem",
                 mem_tiles[col],
                 shim_tiles[col],
                 2,
                 index_split_ty
             )
-            for row in range(0, num_rows):
+            for row in range(num_rows // 2, num_rows):
                 core_fifos_out[row][col] = object_fifo(
                     f"structural_out_c{col}_r{row}",
                     core_tiles[row][col],
@@ -156,9 +156,9 @@ def aie_design(kernel_obj: str):
                     index_block_ty
                 )
             object_fifo_link(
-                [core_fifos_out[row][col] for row in range(0, num_rows)],
-                shim_fifos_out[col],
-                [i * INDEX_BLOCK_SIZE for i in range(0, num_rows)],
+                [core_fifos_out[row][col] for row in range(num_rows // 2, num_rows)],
+                shim_fifos_out_structural[col],
+                [i * INDEX_BLOCK_SIZE for i in range(0, num_rows // 2)],
                 []
             )
 
@@ -168,13 +168,13 @@ def aie_design(kernel_obj: str):
         assert (INDEX_CHUNK_SIZE / INDEX_BLOCK_SIZE / num_cols / num_rows).is_integer(), \
             "Index sizes do not evenly divide for splitting across tiles"
 
-        # Compute tile core definitions for running the string kernel (first half of columns)
-        for col in range(0, num_cols // 2):
-            for row in range(0, num_rows):
+        # Compute tile core definitions for running the string kernel (first half of rows)
+        for col in range(0, num_cols):
+            for row in range(0, num_rows // 2):
                 @core(core_tiles[row][col], kernel_obj)
                 def core_body():
                     for _ in range_(0, sys.maxsize):
-                        for _ in range_(DATA_CHUNK_SIZE // DATA_BLOCK_SIZE // (num_cols // 2) // num_rows):
+                        for _ in range_(DATA_CHUNK_SIZE // DATA_BLOCK_SIZE // num_cols // (num_rows // 2)):
                             of_in = core_fifos_in[row][col]
                             of_out = core_fifos_out[row][col]
 
@@ -184,13 +184,13 @@ def aie_design(kernel_obj: str):
                             of_in.release(ObjectFifoPort.Consume, 1)
                             of_out.release(ObjectFifoPort.Produce, 1)
 
-        # Compute tile core definitions for running the structuralkernel (second half of columns)
-        for col in range(num_cols // 2, num_cols):
-            for row in range(0, num_rows):
+        # Compute tile core definitions for running the structuralkernel (second half of rows)
+        for col in range(0, num_cols):
+            for row in range(num_rows // 2, num_rows):
                 @core(core_tiles[row][col], kernel_obj)
                 def core_body():
                     for _ in range_(0, sys.maxsize):
-                        for _ in range_(DATA_CHUNK_SIZE // DATA_BLOCK_SIZE // (num_cols // 2) // num_rows):
+                        for _ in range_(DATA_CHUNK_SIZE // DATA_BLOCK_SIZE // num_cols // (num_rows // 2)):
                             of_in = core_fifos_in[row][col]
                             of_out = core_fifos_out[row][col]
 
@@ -203,42 +203,42 @@ def aie_design(kernel_obj: str):
         # Host side data-flow movement
         @runtime_sequence(data_chunk_ty, string_chunk_ty, index_chunk_ty, index_chunk_ty)
         def sequence(data_buffer, string_input_buffer, string_index_buffer, structural_index_buffer):
-            for col in range(0, num_cols // 2):
+            for col in range(0, num_cols):
                 string_input_chunk_size = INDEX_CHUNK_SIZE * 2 + CARRY_CHUNK_SIZE
                 npu_dma_memcpy_nd(
-                    metadata=shim_fifos_in[col],
-                    bd_id=col * 2,
+                    metadata=shim_fifos_in_string[col],
+                    bd_id=col * 4,
                     mem=string_input_buffer,
-                    sizes=[1, 1, 1, string_input_chunk_size // (num_cols // 2)],
-                    offsets=[0, 0, 0, (string_input_chunk_size // (num_cols // 2)) * col],
+                    sizes=[1, 1, 1, string_input_chunk_size // num_cols],
+                    offsets=[0, 0, 0, (string_input_chunk_size // num_cols) * col],
                     issue_token=True
                 )
                 npu_dma_memcpy_nd(
-                    metadata=shim_fifos_out[col],
-                    bd_id=col * 2 + 1,
+                    metadata=shim_fifos_out_string[col],
+                    bd_id=col * 4 + 1,
                     mem=string_index_buffer,
-                    sizes=[1, 1, 1, INDEX_CHUNK_SIZE // (num_cols // 2)],
-                    offsets=[0, 0, 0, (INDEX_CHUNK_SIZE // (num_cols // 2)) * col],
+                    sizes=[1, 1, 1, INDEX_CHUNK_SIZE // num_cols],
+                    offsets=[0, 0, 0, (INDEX_CHUNK_SIZE // num_cols) * col],
                     issue_token=True
                 )
-            for col in range(num_cols // 2, num_cols):
                 npu_dma_memcpy_nd(
-                    metadata=shim_fifos_in[col],
-                    bd_id=col * 2,
+                    metadata=shim_fifos_in_structural[col],
+                    bd_id=col * 4 + 2,
                     mem=data_buffer,
-                    sizes=[1, 1, 1, DATA_CHUNK_SIZE // (num_cols // 2)],
-                    offsets=[0, 0, 0, (DATA_CHUNK_SIZE // (num_cols // 2)) * (col - num_cols // 2)],
+                    sizes=[1, 1, 1, DATA_CHUNK_SIZE // num_cols],
+                    offsets=[0, 0, 0, (DATA_CHUNK_SIZE // num_cols) * col],
                     issue_token=True
                 )
                 npu_dma_memcpy_nd(
-                    metadata=shim_fifos_out[col],
-                    bd_id=col * 2 + 1,
+                    metadata=shim_fifos_out_structural[col],
+                    bd_id=col * 4 + 3,
                     mem=structural_index_buffer,
-                    sizes=[1, 1, 1, INDEX_CHUNK_SIZE // (num_cols // 2)],
-                    offsets=[0, 0, 0, (INDEX_CHUNK_SIZE // (num_cols // 2)) * (col - num_cols// 2)],
+                    sizes=[1, 1, 1, INDEX_CHUNK_SIZE // num_cols],
+                    offsets=[0, 0, 0, (INDEX_CHUNK_SIZE // num_cols) * col],
                     issue_token=True
                 )
-            dma_wait(*shim_fifos_out)
+            dma_wait(*shim_fifos_out_string)
+            dma_wait(*shim_fifos_out_structural)
 
 
 def main():

@@ -254,6 +254,7 @@ void Engine::handle_find_key(const char *const json, const std::string_view sear
             pass_structural(structural_character);
             advance();
             iterator->set_chunk_structural_pos(structural_character);
+            // std::cout << "match: " << search_key << std::endl;
             return;
           }
         }
