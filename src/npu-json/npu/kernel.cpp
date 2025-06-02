@@ -67,12 +67,12 @@ Kernel::Kernel(std::string &json) {
 }
 
 template<char C>
-void build_character_index(const char *block, uint64_t *index, size_t n) {
+__attribute__((always_inline)) void build_character_index(const char *block, uint64_t *index) {
   constexpr const size_t N = 64;
 
   const __m512i mask = _mm512_set1_epi8(C);
 
-  for (size_t i = 0; i < n; i += N) {
+  for (size_t i = 0; i < Engine::BLOCK_SIZE; i += N) {
     auto addr = reinterpret_cast<const __m512i *>(&block[i]);
     __m512i data = _mm512_loadu_si512(addr);
     *index++ = _mm512_cmpeq_epu8_mask(data, mask);;
@@ -129,8 +129,8 @@ void Kernel::prepare_kernel_input(const char *chunk, ChunkIndex &index, bool fir
     auto idx = block * (INDEX_BLOCK_SIZE * 2 + 4);
     auto first_index_block = reinterpret_cast<uint64_t *>(&input_buf[idx]);
     auto second_index_block = reinterpret_cast<uint64_t *>(&input_buf[idx + INDEX_BLOCK_SIZE]);
-    build_character_index<'"'>(&chunk[block * Engine::BLOCK_SIZE], first_index_block, Engine::BLOCK_SIZE);
-    build_character_index<'\\'>(&chunk[block * Engine::BLOCK_SIZE], second_index_block, Engine::BLOCK_SIZE);
+    build_character_index<'"'>(&chunk[block * Engine::BLOCK_SIZE], first_index_block);
+    build_character_index<'\\'>(&chunk[block * Engine::BLOCK_SIZE], second_index_block);
     uint32_t *buf_in_carry = (uint32_t *)&input_buf[idx + INDEX_BLOCK_SIZE * 2];
     *buf_in_carry = index.escape_carry_index[block];
   }
