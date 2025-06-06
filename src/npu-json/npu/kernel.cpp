@@ -167,7 +167,7 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
   // Convert strurctural bit-index into structural character stream
   constexpr const size_t N = 64;
 
-  #pragma omp parallel for num_threads(4)
+  #pragma omp parallel for num_threads(StructuralCharacterBlock::BLOCKS_PER_CHUNK)
   for (size_t block = 0; block < StructuralCharacterBlock::BLOCKS_PER_CHUNK; block++) {
     auto structural_index_buf = structural_buffers[!current].output.map<uint64_t *>();
     auto tail = index.blocks[block].structural_characters.data();
