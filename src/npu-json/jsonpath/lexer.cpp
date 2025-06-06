@@ -54,7 +54,8 @@ Token Lexer::next_token() {
         if (std::isalpha(input[pos])) {
           size_t start = pos;
 
-          while (pos < input.length() && std::isalnum(input[pos])) advance();
+          while (pos < input.length() && std::isalnum(input[pos]) || input[pos] == '_')
+            advance();
 
           return build_token(TokenType::Name, start, pos);
         }
