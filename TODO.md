@@ -9,11 +9,15 @@
 - [X] Optimization of read_kernel_outputs structural loop
 - [X] Parallelization of read_kernel_outputs structural loop
 - [ ] Update performance measurements sheet
-- [ ] Fix twitter bugs for both queries
+- [X] Fix twitter bugs for both queries
   - 0 results for T1
   - parser crash for T3
-- [ ] (Re-)Measure all remaining combinations
-- [ ] Make nice bar charts in google sheets
+- [X] (Re-)Measure all remaining combinations
+- [X] Make nice bar charts in google sheets
+- [X] Re-measure twitter on all with correct query
+- [X] Figure out what the larger twitter dataset is
+- [ ] Organize & merge all optimizations
+- [X] Prepare meeting
 - [ ] Create thesis project on Overleaf
   - [ ] Template
   - [ ] Rough outline of chapters
