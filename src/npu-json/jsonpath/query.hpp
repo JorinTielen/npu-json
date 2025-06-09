@@ -25,14 +25,18 @@ struct Descendant {
 };
 
 struct Wildcard {};
+
 struct Index { int64_t value; };
+
+struct Range { int64_t start; int64_t end; };
 } // namespace segments
 
 using Segment = std::variant<
   segments::Member,
   segments::Descendant,
   segments::Wildcard,
-  segments::Index
+  segments::Index,
+  segments::Range
 >;
 
 struct Query {

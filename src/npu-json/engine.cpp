@@ -30,6 +30,8 @@ std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
 
   executing_query = true;
 
+  // print_byte_code(byte_code->instructions);
+
   while (executing_query) {
     auto current_instruction = byte_code->instructions[current_instruction_pointer];
 
@@ -45,6 +47,20 @@ std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
       case Opcode::OpenArray: {
         // std::cout << "OpenArray" << std::endl;
         handle_open_structure(json->c_str(), StructureType::Array);
+        break;
+      }
+      case Opcode::FindIndex: {
+        // std::cout << "FindIndex" << std::endl;
+        assert(current_instruction.search_index.has_value());
+        auto start = current_instruction.search_index.value();
+        handle_find_range(json->c_str(), start, start + 1);
+        break;
+      }
+      case Opcode::FindRange: {
+        // std::cout << "FindRange" << std::endl;
+        assert(current_instruction.search_range.has_value());
+        auto [start, end] = current_instruction.search_range.value();
+        handle_find_range(json->c_str(), start, end);
         break;
       }
       case Opcode::FindKey: {
@@ -93,12 +109,13 @@ void Engine::handle_open_structure(const char *const json, StructureType structu
   while (structural_character != nullptr) {
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
+    // std::cout << "  handling: " << json[*structural_character] << std::endl;
     switch (json[*(structural_character)]) {
       case '{': {
         // std::cout << "  enter(Object)" << std::endl;
         enter(StructureType::Object);
         if (structure_type == StructureType::Object) {
-          // std::cout << "  advance()" << std::endl;
+          // std::cout << "  advance(): " << json[*structural_character] << std::endl;
           advance();
         } else {
           fallback(json);
@@ -109,6 +126,13 @@ void Engine::handle_open_structure(const char *const json, StructureType structu
       case '[': {
         enter(StructureType::Array);
         if (structure_type == StructureType::Array) {
+          auto next_opcode = byte_code->instructions[current_instruction_pointer + 1].opcode;
+          if (next_opcode == jsonpath::Opcode::FindIndex || next_opcode == jsonpath::Opcode::FindRange) {
+            // We might need to handle the first element in the array for FindIndex and FindRange.
+            // Therefore, we pass the opening structural in this case.
+            pass_structural(structural_character);
+          }
+          // std::cout << "  advance(): " << json[*structural_character] << std::endl;
           advance();
         } else {
           fallback(json);
@@ -124,9 +148,11 @@ void Engine::handle_open_structure(const char *const json, StructureType structu
         assert(current_depth >= query_depth - 1);
         assert(current_depth <= query_depth);
         if (current_depth == query_depth) {
-          exit(json[*(structural_character)] ? StructureType::Object : StructureType::Array);
+          // std::cout << "  exit(): " << json[*(structural_character)] << std::endl;
+          exit(json[*(structural_character)] == '}' ? StructureType::Object : StructureType::Array);
           back();
         } else {
+          // std::cout << "  abort(): " << json[*(structural_character)] << std::endl;
           abort(structural_character);
         }
         iterator->set_chunk_structural_pos(structural_character);
@@ -141,6 +167,13 @@ void Engine::handle_open_structure(const char *const json, StructureType structu
         break;
       }
       case ',': {
+        auto previous_opcode = byte_code->instructions[current_instruction_pointer - 1].opcode;
+        if (previous_opcode == jsonpath::Opcode::FindIndex || previous_opcode == jsonpath::Opcode::FindRange) {
+          // The closing comma of the result could also be the starting comma of the next result.
+          // Therefore, we need to pass it back.
+          pass_structural(structural_character);
+          // std::cout << "  back(): " << json[*(structural_character)] << std::endl;
+        }
         back();
         iterator->set_chunk_structural_pos(structural_character);
         return;
@@ -279,6 +312,98 @@ void Engine::handle_find_key(const char *const json, const std::string_view sear
   }
 }
 
+void Engine::handle_find_range(const char *const json, const size_t start, const size_t end) {
+  auto initial_structural_character = passed_previous_structural();
+  auto structural_character = initial_structural_character.has_value()
+    ? initial_structural_character.value()
+    : iterator->get_next_structural_character();
+
+  if (structural_character == nullptr) {
+    throw EngineError("Unexpected end of JSON");
+  }
+
+  auto query_depth = calculate_query_depth();
+
+  auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
+
+  // std::cout << "handle_find_range()" << std::endl;
+
+  if (initial_structural_character.has_value() && json[*(structural_character)] == '[') {
+    if (current_array_position >= start && current_array_position < end) {
+      // std::cout << "  special case [" << std::endl;
+      current_array_position++;
+      pass_structural(structural_character);
+      // std::cout << "  advance(): " << json[*structural_character] << std::endl;
+      advance();
+      iterator->set_chunk_structural_pos(structural_character);
+      return;
+    }
+    current_array_position++;
+
+    if (structural_character < structurals_end - 1) {
+      structural_character++;
+    } else {
+      iterator->set_chunk_structural_pos(structurals_end);
+      structural_character = iterator->get_next_structural_character();
+      if (structural_character != nullptr) {
+        structurals_end = iterator->get_chunk_structural_index_end_ptr();
+      }
+    }
+  }
+
+  while (structural_character != nullptr) {
+    switch (json[*(structural_character)]) {
+      case '{':
+      case '[':
+        current_depth++;
+        break;
+      case '}':
+      case ']': {
+        if (current_depth == query_depth) {
+          // std::cout << "  abort(): " << json[*structural_character] << std::endl;
+          abort(structural_character);
+          iterator->set_chunk_structural_pos(structural_character);
+          return;
+        } else {
+          current_depth--;
+        }
+        break;
+      }
+      case ':':
+        break;
+      case ',':
+        if (current_depth == query_depth) {
+          // std::cout << "  checking array bounds:" << std::endl;
+          // std::cout << "    current_array_position = " << current_array_position << std::endl;
+          // std::cout << "    start = " << start << std::endl;
+          // std::cout << "    end = " << end << std::endl;
+          if (current_array_position >= start && current_array_position < end) {
+            current_array_position++;
+            // pass_structural(structural_character);
+            // std::cout << "  advance(): " << json[*structural_character] << std::endl;
+            advance();
+            iterator->set_chunk_structural_pos(structural_character);
+            return;
+          }
+          current_array_position++;
+        }
+        break;
+      default:
+        __builtin_unreachable();
+    }
+
+    if (structural_character < structurals_end - 1) {
+      structural_character++;
+    } else {
+      iterator->set_chunk_structural_pos(structurals_end);
+      structural_character = iterator->get_next_structural_character();
+      if (structural_character != nullptr) {
+        structurals_end = iterator->get_chunk_structural_index_end_ptr();
+      }
+    }
+  }
+}
+
 void Engine::handle_wildcard(const char *const json) {
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character.has_value()
@@ -381,9 +506,12 @@ void Engine::handle_record_result(const char *const json, ResultSet &result_set)
 
   auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
 
+  // std::cout << "handle_record_result()" << std::endl;
+
   while (structural_character != nullptr) {
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
+    // std::cout << "  handling " << json[*structural_character] << std::endl;
     switch (json[*(structural_character)]) {
       case '{':
       case '[':
@@ -397,7 +525,7 @@ void Engine::handle_record_result(const char *const json, ResultSet &result_set)
           // If this was the last key or value in the array, this closing marks the end of the result value.
           // std::cout << "  record_result()" << std::endl;
           result_set.record_result(start_pos + 1, size_t(*structural_character) - 1);
-          // std::cout << "  abort()" << std::endl;
+          // std::cout << "  abort(): " << json[*structural_character] << std::endl;
           abort(structural_character);
           iterator->set_chunk_structural_pos(structural_character);
           return;
@@ -411,11 +539,16 @@ void Engine::handle_record_result(const char *const json, ResultSet &result_set)
         break;
       }
       case ',': {
-        if (current_depth == query_depth) {
+        if (current_depth == query_depth && size_t(*structural_character) != start_pos) {
           // Record a result at this position
           // std::cout << "  record_result()" << std::endl;
           result_set.record_result(start_pos + 1, size_t(*structural_character) - 1);
-          // std::cout << "  back()" << std::endl;
+          auto previous_opcode = byte_code->instructions[current_instruction_pointer - 1].opcode;
+          if (previous_opcode == jsonpath::Opcode::FindIndex || previous_opcode == jsonpath::Opcode::FindRange) {
+            // The closing comma of the result could also be the starting comma of the next result.
+            // Therefore, we need to pass it back.
+            pass_structural(structural_character);
+          }
           back();
           iterator->set_chunk_structural_pos(structural_character);
           return;
@@ -446,7 +579,8 @@ void Engine::advance() {
     current_instruction_pointer,
     current_structure_type,
     current_depth,
-    current_matched_key_at_depth
+    current_matched_key_at_depth,
+    current_array_position
   );
 
   current_instruction_pointer++;
@@ -504,6 +638,7 @@ void Engine::restore_state_from_stack(StackFrame &frame) {
   current_structure_type = frame.structure_type;
   current_instruction_pointer = frame.instruction_pointer;
   current_matched_key_at_depth = frame.matched_key_at_depth;
+  current_array_position = frame.array_position;
 }
 
 // Pass a structural character to the next engine state.

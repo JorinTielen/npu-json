@@ -37,12 +37,19 @@ struct StackFrame {
   size_t depth; // The current depth of the JSON (sub-)tree we are executing on
 
   bool matched_key_at_depth = false; // Used for FindKey state tail-skip
+  size_t array_position = 0; // Used for FindIndex & FindRange
 
-  StackFrame(size_t instruction_pointer, StructureType structure_type, size_t depth, bool matched_key_at_depth)
+  StackFrame(
+    size_t instruction_pointer,
+    StructureType structure_type,
+    size_t depth,
+    bool matched_key_at_depth,
+    size_t array_position)
     : instruction_pointer(instruction_pointer)
     , structure_type(structure_type)
     , depth(depth)
-    , matched_key_at_depth(matched_key_at_depth) {}
+    , matched_key_at_depth(matched_key_at_depth)
+    , array_position(array_position) {}
 };
 
 // JSONPath engine
@@ -70,10 +77,12 @@ private:
   std::optional<uint32_t*> previous_structural;
 
   bool current_matched_key_at_depth = false;
+  size_t current_array_position = 0;
 
   // State implementations
   void handle_open_structure(const char *const json, StructureType structure_type);
   void handle_find_key(const char *const json, const std::string_view search_key);
+  void handle_find_range(const char *const json, const size_t start, const size_t end);
   void handle_wildcard(const char *const json);
   void handle_record_result(const char *const json, ResultSet &result_set);
 

@@ -36,6 +36,7 @@ std::string token_type_name(TokenType type) {
     case TokenType::CloseBracket: return "close bracket";
     case TokenType::Name: return "name";
     case TokenType::Number: return "number";
+    case TokenType::Colon: return "colon";
     default: throw std::logic_error("Unknown TokenType");
   }
 }
@@ -103,7 +104,15 @@ Segment Parser::parse_selector_segment(Lexer & lexer) {
   auto token = lexer.consume();
   switch (token.type) {
     case TokenType::Number: {
-      return segments::Index { std::stol(token.text) };
+      if (lexer.peek().type == TokenType::Colon) {
+        auto start = std::stol(token.text);
+        lexer.consume(); // Consume colon
+        token = lexer.consume();
+        auto end = std::stol(token.text);
+        return segments::Range { start, end };
+      } else {
+        return segments::Index { std::stol(token.text) };
+      }
     }
     case TokenType::Wildcard: {
       return segments::Wildcard {};

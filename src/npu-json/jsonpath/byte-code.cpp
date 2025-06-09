@@ -17,6 +17,12 @@ void ByteCode::compile_from_query(Query &query) {
       } else if constexpr (std::is_same_v<segments::Member, T>) {
         instructions.emplace_back(Opcode::OpenObject);
         instructions.emplace_back(Opcode::FindKey, arg.name);
+      } else if constexpr (std::is_same_v<segments::Index, T>) {
+        instructions.emplace_back(Opcode::OpenArray);
+        instructions.emplace_back(Opcode::FindIndex, arg.value);
+      } else if constexpr (std::is_same_v<segments::Range, T>) {
+        instructions.emplace_back(Opcode::OpenArray);
+        instructions.emplace_back(Opcode::FindRange, arg.start, arg.end);
       } else if constexpr (std::is_same_v<segments::Wildcard, T>) {
         instructions.emplace_back(Opcode::WildCard);
       } else {

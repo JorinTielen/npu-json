@@ -14,6 +14,7 @@ enum class TokenType {
   OpenBracket,
   CloseBracket,
   Wildcard,
+  Colon
 };
 
 struct Token {

@@ -52,6 +52,8 @@ inline void print_byte_code(const std::vector<jsonpath::Instruction> &instructio
     switch (instruction.opcode) {
       case jsonpath::Opcode::FindIndex:
         std::cout << ip << ": " << "FindIndex" << std::endl; break;
+      case jsonpath::Opcode::FindRange:
+        std::cout << ip << ": " << "FindRange" << std::endl; break;
       case jsonpath::Opcode::FindKey:
         std::cout << ip << ": " << "FindKey" << std::endl; break;
       case jsonpath::Opcode::OpenArray:

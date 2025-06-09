@@ -50,6 +50,7 @@ Token Lexer::next_token() {
       case '[': return single_character_token(TokenType::OpenBracket);
       case ']': return single_character_token(TokenType::CloseBracket);
       case '*': return single_character_token(TokenType::Wildcard);
+      case ':': return single_character_token(TokenType::Colon);
       default: {
         if (std::isalpha(input[pos])) {
           size_t start = pos;
