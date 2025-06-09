@@ -16,15 +16,18 @@
 - [X] Make nice bar charts in google sheets
 - [X] Re-measure twitter on all with correct query
 - [X] Figure out what the larger twitter dataset is
-- [ ] Organize & merge all optimizations
+- [X] Organize & merge all optimizations
 - [X] Prepare meeting
+- [ ] Bench all the queries that are working now
 - [ ] Create thesis project on Overleaf
   - [ ] Template
   - [ ] Rough outline of chapters
-- [ ] Rewrite automaton (flipped loops + switches)
-- [ ] Add support for index + index range to automaton
+- [ ] Investigate N2 query result count (bug)
+- [ ] Add support for index + index range to automaton (B1)
+- [ ] (Optional) Rewrite automaton (flipped loops + switches)
 - [ ] (Optional) Debug + add unit tests for queue
 - [ ] (Optional) NPU optimizations
+- [ ] (Optional) Investigate errors when wrong query for data
   - Vectorize string index further
   - Use parallel_lookup for structural index
 - [ ] Add e2e tests for full system

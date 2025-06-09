@@ -13,11 +13,11 @@ Datasets are collected in the `datesets` folder. It is important to consider whi
 | B1 | `bestbuy` | `$.products[*].categoryPath[1:3].id` | From GPJSON and JSONSKi. Uses a slice (`1:3`) for arrays. |
 | B2 | `bestbuy` | `$.products[*].videoChapters[*].chapter` | From GPJSON, JSONSKi and rsonpath. |
 | G1 | `googlemaps` | `$[*].routes[*].legs[*].steps[*].distance.text` | From JSONSki and rsonpath. Google Maps dataset. Massive amount of results. |
-| G2 | `googlemaps` | `$[*].available_travel_nodes` | From JSONSki and rsonpath. Google Maps dataset. |
+| G2 | `googlemaps` | `$[*].available_travel_modes` | From JSONSki and rsonpath. Google Maps dataset. |
 | N1 | `nspl` | `$.meta.view.columns[*].name` | From JSONSKi and rsonpath. NSPL dataset. |
 | N2 | `nspl` | `$.data[*][*][*]` | From JSONSKi and rsonpath. Massive amount of results. |
 | W1 | `walmart` | `$.items[*].bestMarketplacePrice.price` | From GPJSON, JSONSki and rsonpath. Walmart dataset. |
-| Wi | `wikipedia` | `$[*].claims.P15[*].mainsnak.property` | From JSONSki and rsonpath. Wikipedia dataset. |
+| Wi | `wikipedia` | `$[*].claims.P150[*].mainsnak.property` | From JSONSki and rsonpath. Wikipedia dataset. |
 
 ## Architecture
 
