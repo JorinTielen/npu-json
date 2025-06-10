@@ -6,6 +6,8 @@ echo "Running benchmark: twitter (T1)"
 build/nj datasets/twitter.json "\$[*].user.lang" --bench
 echo "Running benchmark: twitter (T2)"
 build/nj datasets/twitter.json "\$[*].entities.urls[*].url" --bench
+echo "Running benchmark: bestbuy (B1)"
+build/nj datasets/bestbuy.json "\$.products[*].categoryPath[1:3].id" --bench
 echo "Running benchmark: bestbuy (B2)"
 build/nj datasets/bestbuy.json "\$.products[*].videoChapters[*].chapter" --bench
 echo "Running benchmark: googlemaps (G1)"
