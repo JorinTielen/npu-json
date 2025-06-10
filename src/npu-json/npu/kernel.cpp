@@ -87,6 +87,40 @@ __attribute__((always_inline)) inline uint64_t clear_lowest_bit(uint64_t mask) {
   return _blsr_u64(mask);
 }
 
+__attribute__((always_inline)) inline uint64_t count_ones(uint64_t mask) {
+  return _popcnt64(mask);
+}
+
+// Taken from simdjson: https://github.com/simdjson/simdjson/blob/0c0ce1bd48baa0677dc7c0945ea7cd1e8b52b297/src/icelake.cpp#L128
+__attribute((always_inline)) inline void write_structural_index(
+    uint32_t *tail, uint64_t bits, const size_t position, const size_t count) {
+  if (bits == 0) { return; }
+
+  const __m512i indexes = _mm512_maskz_compress_epi8(bits, _mm512_set_epi32(
+    0x3f3e3d3c, 0x3b3a3938, 0x37363534, 0x33323130,
+    0x2f2e2d2c, 0x2b2a2928, 0x27262524, 0x23222120,
+    0x1f1e1d1c, 0x1b1a1918, 0x17161514, 0x13121110,
+    0x0f0e0d0c, 0x0b0a0908, 0x07060504, 0x03020100
+  ));
+  const __m512i start_index = _mm512_set1_epi32(position);
+
+  __m512i t0 = _mm512_cvtepu8_epi32(_mm512_castsi512_si128(indexes));
+  _mm512_storeu_si512(tail, _mm512_add_epi32(t0, start_index));
+
+  if(count > 16) {
+    const __m512i t1 = _mm512_cvtepu8_epi32(_mm512_extracti32x4_epi32(indexes, 1));
+    _mm512_storeu_si512(tail + 16, _mm512_add_epi32(t1, start_index));
+    if(count > 32) {
+      const __m512i t2 = _mm512_cvtepu8_epi32(_mm512_extracti32x4_epi32(indexes, 2));
+      _mm512_storeu_si512(tail + 32, _mm512_add_epi32(t2, start_index));
+      if(count > 48) {
+        const __m512i t3 = _mm512_cvtepu8_epi32(_mm512_extracti32x4_epi32(indexes, 3));
+        _mm512_storeu_si512(tail + 48, _mm512_add_epi32(t3, start_index));
+      }
+    }
+  }
+}
+
 void construct_escape_carry_index(const char *chunk, ChunkIndex &index, bool first_escape_carry) {
   auto& tracer = util::Tracer::get_instance();
   auto trace = tracer.start_trace("construct_escape_carry_index");
@@ -181,12 +215,10 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
 
       nonquoted_structural = nonquoted_structural & ~index.string_index[pos];
 
-      while (nonquoted_structural) {
-        uint32_t structural_idx = (pos * N) + trailing_zeroes(nonquoted_structural);
-        *tail++ = structural_idx + uint32_t(chunk_idx);
-        index.blocks[block].structural_characters_count++;
-        nonquoted_structural = clear_lowest_bit(nonquoted_structural);
-      }
+      const auto count = count_ones(nonquoted_structural);
+      write_structural_index(tail, nonquoted_structural, pos * N + chunk_idx, count);
+      index.blocks[block].structural_characters_count += count;
+      tail += count;
     }
   }
 
