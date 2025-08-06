@@ -13,11 +13,11 @@ DESCRIPTION = "Plot benchmark results in TSV format as a bar chart."
 ResultData = Dict[str, List[float]]
 
 
-def read_results_from_csv(file_name: str, skip_geomean=True) -> Tuple[List[str], ResultData]:
+def read_results_from_tsv(file_name: str, skip_geomean=True) -> Tuple[List[str], ResultData]:
     benches = []
     results: ResultData = dict()
-    with open(file_name, "+r") as csv_file:
-        results_reader = csv.DictReader(csv_file, delimiter="\t")
+    with open(file_name, "+r") as tsv_file:
+        results_reader = csv.DictReader(tsv_file, delimiter="\t")
         engines = results_reader.fieldnames[1:]
         for results_row in results_reader:
             if skip_geomean and results_row["Benchmark"] == "geomean":
@@ -44,10 +44,14 @@ def save_schedule_diagram(output_file_name: str, benches: List[str],
     width = 0.2
     multiplier = 0
 
-    _, ax = plt.subplots()
-    for engine, measurements in results.items():
+    patterns = ["//", "\\\\", None, None]
+    plt.rcParams.update({'hatch.color': '0.8'})
+
+    plt.style.use("tableau-colorblind10")
+    _, ax = plt.subplots(figsize=(7.5,5))
+    for i, (engine, measurements) in enumerate(results.items()):
         offset = width * multiplier
-        ax.bar(x + offset, measurements, width, label=engine)
+        ax.bar(x + offset, measurements, width, label=engine, hatch=patterns[i])
         multiplier += 1
 
     ax.set_facecolor('whitesmoke')
@@ -60,7 +64,7 @@ def save_schedule_diagram(output_file_name: str, benches: List[str],
     frame.set_facecolor('whitesmoke')
     ax.set_ylim(0, 16)
 
-    plt.savefig(output_file_name, dpi=250)
+    plt.savefig(output_file_name, dpi=80)
 
 def main():
     parser = argparse.ArgumentParser(prog="plot_bench_results", description=DESCRIPTION)
@@ -68,7 +72,7 @@ def main():
     parser.add_argument("-o", "--output", required=True, type=str, help="Output file name (PDF)")
     args = parser.parse_args()
 
-    benches, results = read_results_from_csv(args.results)
+    benches, results = read_results_from_tsv(args.results)
     save_schedule_diagram(args.output, benches, results)
 
 
