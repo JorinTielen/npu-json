@@ -30,7 +30,7 @@ std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
 
   executing_query = true;
 
-  // print_byte_code(byte_code->instructions);
+  print_byte_code(byte_code->instructions);
 
   while (executing_query) {
     auto current_instruction = byte_code->instructions[current_instruction_pointer];
@@ -106,6 +106,8 @@ void Engine::handle_open_structure(const char *const json, StructureType structu
 
   auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
 
+  // std::cout << "handle_open_structure()" << std::endl;
+
   while (structural_character != nullptr) {
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
@@ -116,8 +118,10 @@ void Engine::handle_open_structure(const char *const json, StructureType structu
         enter(StructureType::Object);
         if (structure_type == StructureType::Object) {
           // std::cout << "  advance(): " << json[*structural_character] << std::endl;
+          // std::cout << "  advance()" << std::endl;
           advance();
         } else {
+          // std::cout << "  fallback()" << std::endl;
           fallback(json);
         }
         iterator->set_chunk_structural_pos(structural_character);
@@ -132,9 +136,10 @@ void Engine::handle_open_structure(const char *const json, StructureType structu
             // Therefore, we pass the opening structural in this case.
             pass_structural(structural_character);
           }
-          // std::cout << "  advance(): " << json[*structural_character] << std::endl;
+          // std::cout << "  advance()" << std::endl;
           advance();
         } else {
+          // std::cout << "  fallback()" << std::endl;
           fallback(json);
         }
         iterator->set_chunk_structural_pos(structural_character);
@@ -167,13 +172,15 @@ void Engine::handle_open_structure(const char *const json, StructureType structu
         break;
       }
       case ',': {
+        // std::cout << "OpenStructure: ," << std::endl;
         auto previous_opcode = byte_code->instructions[current_instruction_pointer - 1].opcode;
         if (previous_opcode == jsonpath::Opcode::FindIndex || previous_opcode == jsonpath::Opcode::FindRange) {
           // The closing comma of the result could also be the starting comma of the next result.
           // Therefore, we need to pass it back.
+          // std::cout << "  pass_structural(" << json[*structural_character] << ")" << std::endl;
           pass_structural(structural_character);
-          // std::cout << "  back(): " << json[*(structural_character)] << std::endl;
         }
+        // std::cout << "  back(): " << json[*(structural_character)] << std::endl;
         back();
         iterator->set_chunk_structural_pos(structural_character);
         return;
@@ -254,6 +261,8 @@ void Engine::handle_find_key(const char *const json, const std::string_view sear
     }
   }
 
+  // std::cout << "handle_find_key()" << std::endl;
+
   while (structural_character != nullptr) {
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
@@ -283,11 +292,11 @@ void Engine::handle_find_key(const char *const json, const std::string_view sear
           auto matched = check_key_match(json, size_t(*structural_character), search_key);
           if (matched) {
             // std::cout << "  advance()" << std::endl;
+            // std::cout << "  match: " << search_key << std::endl;
             current_matched_key_at_depth = true;
             pass_structural(structural_character);
             advance();
             iterator->set_chunk_structural_pos(structural_character);
-            // std::cout << "match: " << search_key << std::endl;
             return;
           }
         }
@@ -332,6 +341,7 @@ void Engine::handle_find_range(const char *const json, const size_t start, const
     if (current_array_position >= start && current_array_position < end) {
       // std::cout << "  special case [" << std::endl;
       current_array_position++;
+      // std::cout << "  pass_structural(" << json[*structural_character] << ")" << std::endl;
       pass_structural(structural_character);
       // std::cout << "  advance(): " << json[*structural_character] << std::endl;
       advance();
@@ -418,10 +428,12 @@ void Engine::handle_wildcard(const char *const json) {
 
   auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
 
+  // std::cout << "handle_wildcard()" << std::endl;
+
   while (structural_character != nullptr) {
-    // std::cout << "  structural_character: " << s.c << std::endl;
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
+    // std::cout << "  handling: " << json[*structural_character] << std::endl;
     switch (json[*(structural_character)]) {
       case '{': {
         enter(StructureType::Object);
@@ -429,6 +441,15 @@ void Engine::handle_wildcard(const char *const json) {
       }
       case '[': {
         enter(StructureType::Array);
+        // std::cout << "  advance(): " << json[*structural_character] << std::endl;
+        auto next_opcode = byte_code->instructions[current_instruction_pointer + 1].opcode;
+        if (next_opcode == jsonpath::Opcode::RecordResult) {
+          // If the next opcode is RecordResult, we want to record every value in the array.
+          // The first value in the array needs its span to start from the opening bracket,
+          // therefore we pass it.
+          // std::cout << "Special pass" << std::endl;
+          pass_structural(structural_character);
+        }
         advance();
         iterator->set_chunk_structural_pos(structural_character);
         return;
@@ -441,9 +462,11 @@ void Engine::handle_wildcard(const char *const json) {
         assert(current_depth >= query_depth);
         assert(current_depth <= query_depth + 1);
         if (current_depth == query_depth) {
+          // std::cout << "  exit(): " << json[*structural_character] << std::endl;
           exit(json[*(structural_character)] == '{' ? StructureType::Object : StructureType::Array);
           back();
         } else {
+          // std::cout << "  abort(): " << json[*structural_character] << std::endl;
           abort(structural_character);
         }
         iterator->set_chunk_structural_pos(structural_character);
@@ -453,6 +476,7 @@ void Engine::handle_wildcard(const char *const json) {
         // Ignore the colon if it came from a previous Findkey.
         if (current_depth == query_depth + 1) {
           if (current_structure_type == StructureType::Object) {
+            // std::cout << "  advance(): " << json[*structural_character] << std::endl;
             advance();
             iterator->set_chunk_structural_pos(structural_character);
             return;
@@ -468,6 +492,14 @@ void Engine::handle_wildcard(const char *const json) {
         // after a comma at the correct depth.
         if (current_depth == query_depth) {
           if (current_structure_type == StructureType::Array) {
+            // std::cout << "  advance(): " << json[*structural_character] << std::endl;
+            auto next_opcode = byte_code->instructions[current_instruction_pointer + 1].opcode;
+            if (next_opcode == jsonpath::Opcode::RecordResult) {
+              // If the next opcode is RecordResult, we want to record every value in the array.
+              // The value in between this comma and the next must therefore be recorded.
+              // std::cout << "Special pass 2" << std::endl;
+              pass_structural(structural_character);
+            }
             advance();
             iterator->set_chunk_structural_pos(structural_character);
             return;
@@ -511,19 +543,23 @@ void Engine::handle_record_result(const char *const json, ResultSet &result_set)
   while (structural_character != nullptr) {
     // std::cout << "  current_depth: " << current_depth << std::endl;
     // std::cout << "  query_depth: " << query_depth << std::endl;
-    // std::cout << "  handling " << json[*structural_character] << std::endl;
+    // std::cout << "  handling: " << json[*structural_character] << std::endl;
     switch (json[*(structural_character)]) {
       case '{':
       case '[':
         // For complex results, we want to record the entire structure.
-        current_depth++;
+        if (!initial_structural_character.has_value() || current_depth != query_depth) {
+          current_depth++;
+        }
         break;
       case '}':
       case ']': {
         assert(current_depth > query_depth - 1);
+        // std::cout << "RecordResult: }]" << std::endl;
         if (current_depth == query_depth) {
           // If this was the last key or value in the array, this closing marks the end of the result value.
           // std::cout << "  record_result()" << std::endl;
+          // std::cout << "  record_result(): " << std::string(&json[start_pos + 1], size_t(*structural_character) - 1) << std::endl;
           result_set.record_result(start_pos + 1, size_t(*structural_character) - 1);
           // std::cout << "  abort(): " << json[*structural_character] << std::endl;
           abort(structural_character);
@@ -539,14 +575,20 @@ void Engine::handle_record_result(const char *const json, ResultSet &result_set)
         break;
       }
       case ',': {
+        // std::cout << "RecordResult: ," << std::endl;
         if (current_depth == query_depth && size_t(*structural_character) != start_pos) {
           // Record a result at this position
           // std::cout << "  record_result()" << std::endl;
+          // std::cout << "  record_result(): " << std::string(&json[start_pos + 1], size_t(*structural_character) - 1) << std::endl;
           result_set.record_result(start_pos + 1, size_t(*structural_character) - 1);
           auto previous_opcode = byte_code->instructions[current_instruction_pointer - 1].opcode;
-          if (previous_opcode == jsonpath::Opcode::FindIndex || previous_opcode == jsonpath::Opcode::FindRange) {
+          if (previous_opcode == jsonpath::Opcode::FindIndex ||
+              previous_opcode == jsonpath::Opcode::FindRange ||
+              previous_opcode == jsonpath::Opcode::WildCard) {
             // The closing comma of the result could also be the starting comma of the next result.
             // Therefore, we need to pass it back.
+            // std::cout << "  pass_structural(" << json[*structural_character] << ")" << std::endl;
+            // std::cout << "Special pass back" << std::endl;
             pass_structural(structural_character);
           }
           back();
