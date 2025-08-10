@@ -38,8 +38,7 @@ def read_results_from_tsv(file_name: str, skip_geomean=True) -> Tuple[List[str],
     return benches, results
 
 
-def save_schedule_diagram(output_file_name: str, benches: List[str],
-                          results: ResultData):
+def save_bench_diagram(output_file_name: str, benches: List[str], results: ResultData):
     x = np.arange(len(benches))
     width = 0.2
     multiplier = 0
@@ -48,7 +47,7 @@ def save_schedule_diagram(output_file_name: str, benches: List[str],
     plt.rcParams.update({'hatch.color': '0.8'})
 
     plt.style.use("tableau-colorblind10")
-    _, ax = plt.subplots(figsize=(7.5,5))
+    _, ax = plt.subplots(figsize=(7.5,4))
     for i, (engine, measurements) in enumerate(results.items()):
         offset = width * multiplier
         ax.bar(x + offset, measurements, width, label=engine, hatch=patterns[i])
@@ -62,7 +61,7 @@ def save_schedule_diagram(output_file_name: str, benches: List[str],
     legend = ax.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left", mode="expand", ncols=4, fontsize="small")
     frame = legend.get_frame()
     frame.set_facecolor('whitesmoke')
-    ax.set_ylim(0, 14)
+    ax.set_ylim(0, 16)
 
     plt.savefig(output_file_name, dpi=80)
 
@@ -73,7 +72,7 @@ def main():
     args = parser.parse_args()
 
     benches, results = read_results_from_tsv(args.results)
-    save_schedule_diagram(args.output, benches, results)
+    save_bench_diagram(args.output, benches, results)
 
 
 if __name__ == "__main__":

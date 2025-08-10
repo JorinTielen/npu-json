@@ -35,11 +35,15 @@ def read_results_from_tsv(file_name: str, experiment_name: str) -> Tuple[List[st
 def save_line_diagram(output_file_name: str, experiment_name: str,
                       benches: List[str], results: ResultData):
     x = np.arange(len(benches))
+    width = 0.2
+    multiplier = 0
 
     plt.style.use("tableau-colorblind10")
     _, ax = plt.subplots(figsize=(7.5,5))
-    measurements = results["Throughput"]
-    ax.plot(x, measurements, linestyle="dashed", marker="o")
+    for i, (engine, measurements) in enumerate(results.items()):
+        offset = width * multiplier
+        ax.plot(x, measurements, linestyle="dashed", label=engine, marker="o")
+        multiplier += 1
 
     ax.set_facecolor('whitesmoke')
     ax.set_axisbelow(True)
@@ -48,6 +52,9 @@ def save_line_diagram(output_file_name: str, experiment_name: str,
     ax.set_xlabel(experiment_name)
     ax.set_xticks(x, benches)
     ax.tick_params(axis='x', labelrotation=45)
+    legend = ax.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left", mode="expand", ncols=4, fontsize="small")
+    frame = legend.get_frame()
+    frame.set_facecolor('whitesmoke')
     ax.set_ylim(0, 12)
 
     plt.tight_layout()
