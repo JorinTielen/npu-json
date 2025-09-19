@@ -50,4 +50,8 @@ just build
 
 ## Usage
 
-TODO.
+We can run a query on one of the benchmark datasets as follows:
+
+```sh
+just run twitter "\$[*].user.lang"
+```
