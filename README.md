@@ -2,7 +2,7 @@
 
 A JSON parser and JSONPath query engine accelerated on the AMD XDNA NPU
 architecture. Developed as part of my Master Embedded Systems Graduation
-Project "Accelerating JSON Processing on SIMD Architectures".
+Project "Accelerating JSON Processing on SIMD-based NPU Architectures".
 
 ## Build instructions
 
@@ -49,6 +49,8 @@ just build
 ```
 
 ## Usage
+
+First download the datasets with the instructions in the `datasets/` directory.
 
 We can run a query on one of the benchmark datasets as follows:
 
