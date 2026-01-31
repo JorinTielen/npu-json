@@ -13,7 +13,7 @@ constexpr std::size_t CHUNK_CARRY_INDEX_SIZE = Engine::CHUNK_SIZE / Engine::BLOC
 constexpr std::size_t CHUNK_BIT_INDEX_SIZE = Engine::CHUNK_SIZE / 8;
 
 struct StructuralCharacterBlock {
-  static constexpr const size_t BLOCKS_PER_CHUNK = 4;
+  static constexpr const size_t BLOCKS_PER_CHUNK = 1;
   std::array<uint32_t, Engine::CHUNK_SIZE / BLOCKS_PER_CHUNK> structural_characters;
   size_t structural_characters_count = 0;
 };
