@@ -3,10 +3,13 @@ import sys
 
 import numpy as np
 
+from aie.iron import *
+from aie.iron.controlflow import range_
+
 from aie.dialects.aie import *
 from aie.dialects.aiex import *
 from aie.extras.context import mlir_mod_ctx
-from aie.helpers.dialects.ext.scf import _for as range_
+# from aie.helpers.dialects.ext.scf import _for as range_
 
 
 # Must be kept in sync with the CHUNK_SIZE and BLOCK_SIZE in `src/npu-json/engine.hpp`.
@@ -23,11 +26,11 @@ CARRY_BLOCK_SIZE = 4
 
 # AI Engine structural design function
 def aie_design(kernel_obj: str):
-    num_cols = 4
+    num_cols = 8
     num_rows = 4
 
     # Device declaration - aie2 device NPU
-    @device(AIEDevice.npu1_4col)
+    @device(AIEDevice.npu2)
     def device_body():
         data_chunk_ty = np.ndarray[(DATA_CHUNK_SIZE,), np.dtype[np.uint8]]
         data_block_ty = np.ndarray[(DATA_BLOCK_SIZE,), np.dtype[np.uint8]]
@@ -207,7 +210,8 @@ def aie_design(kernel_obj: str):
                 string_input_chunk_size = INDEX_CHUNK_SIZE * 2 + CARRY_CHUNK_SIZE
                 npu_dma_memcpy_nd(
                     metadata=shim_fifos_in_string[col],
-                    bd_id=col * 4,
+                    # bd_id=col * 4,
+                    bd_id=0,
                     mem=string_input_buffer,
                     sizes=[1, 1, 1, string_input_chunk_size // num_cols],
                     offsets=[0, 0, 0, (string_input_chunk_size // num_cols) * col],
@@ -215,7 +219,8 @@ def aie_design(kernel_obj: str):
                 )
                 npu_dma_memcpy_nd(
                     metadata=shim_fifos_out_string[col],
-                    bd_id=col * 4 + 1,
+                    # bd_id=col * 4 + 1,
+                    bd_id=1,
                     mem=string_index_buffer,
                     sizes=[1, 1, 1, INDEX_CHUNK_SIZE // num_cols],
                     offsets=[0, 0, 0, (INDEX_CHUNK_SIZE // num_cols) * col],
@@ -223,7 +228,8 @@ def aie_design(kernel_obj: str):
                 )
                 npu_dma_memcpy_nd(
                     metadata=shim_fifos_in_structural[col],
-                    bd_id=col * 4 + 2,
+                    # bd_id=col * 4 + 2,
+                    bd_id=2,
                     mem=data_buffer,
                     sizes=[1, 1, 1, DATA_CHUNK_SIZE // num_cols],
                     offsets=[0, 0, 0, (DATA_CHUNK_SIZE // num_cols) * col],
@@ -231,7 +237,8 @@ def aie_design(kernel_obj: str):
                 )
                 npu_dma_memcpy_nd(
                     metadata=shim_fifos_out_structural[col],
-                    bd_id=col * 4 + 3,
+                    # bd_id=col * 4 + 3,
+                    bd_id=3,
                     mem=structural_index_buffer,
                     sizes=[1, 1, 1, INDEX_CHUNK_SIZE // num_cols],
                     offsets=[0, 0, 0, (INDEX_CHUNK_SIZE // num_cols) * col],
