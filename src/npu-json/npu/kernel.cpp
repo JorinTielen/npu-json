@@ -211,12 +211,76 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
     constexpr auto total_size = CHUNK_BIT_INDEX_SIZE / 8;
     constexpr auto blocks_per_chunk = StructuralCharacterBlock::BLOCKS_PER_CHUNK;
     constexpr auto block_index_size = total_size / blocks_per_chunk;
-    for (size_t i = 0; i < block_index_size; i++) {
-      // auto pos = i + block * block_index_size;
+    // Iterate in blocks of 4 to check for sparsity
+    size_t i = 0;
+    for (; i + 3 < block_index_size; i += 4) {
+      auto pos = i;
+
+      // Load 4 values
+      uint64_t s0 = structural_index_buf[pos];
+      uint64_t q0 = index.string_index[pos];
+      uint64_t r0 = s0 & ~q0;
+
+      uint64_t s1 = structural_index_buf[pos + 1];
+      uint64_t q1 = index.string_index[pos + 1];
+      uint64_t r1 = s1 & ~q1;
+
+      uint64_t s2 = structural_index_buf[pos + 2];
+      uint64_t q2 = index.string_index[pos + 2];
+      uint64_t r2 = s2 & ~q2;
+
+      uint64_t s3 = structural_index_buf[pos + 3];
+      uint64_t q3 = index.string_index[pos + 3];
+      uint64_t r3 = s3 & ~q3;
+
+      // If all 4 chunks yield 0 bits, skip 
+      if ((r0 | r1 | r2 | r3) == 0) {
+        continue;
+      }
+
+      // Otherwise, process them individually
+
+      // Chunk 0
+      if (r0) {
+        const auto count = count_ones(r0);
+        write_structural_index(tail, r0, pos * N + chunk_idx, count);
+        index.block.structural_characters_count += count;
+        tail += count;
+      }
+
+      // Chunk 1
+      if (r1) {
+        const auto count = count_ones(r1);
+        write_structural_index(tail, r1, (pos + 1) * N + chunk_idx, count);
+        index.block.structural_characters_count += count;
+        tail += count;
+      }
+
+      // Chunk 2
+      if (r2) {
+        const auto count = count_ones(r2);
+        write_structural_index(tail, r2, (pos + 2) * N + chunk_idx, count);
+        index.block.structural_characters_count += count;
+        tail += count;
+      }
+
+      // Chunk 3
+      if (r3) {
+        const auto count = count_ones(r3);
+        write_structural_index(tail, r3, (pos + 3) * N + chunk_idx, count);
+        index.block.structural_characters_count += count;
+        tail += count;
+      }
+    }
+
+    // Cleanup loop for remaining elements
+    // May not need but kept for safety
+    for (; i < block_index_size; i++) {
       auto pos = i;
       auto nonquoted_structural = structural_index_buf[pos];
-
       nonquoted_structural = nonquoted_structural & ~index.string_index[pos];
+
+      if (nonquoted_structural == 0) continue; // Explicit check
 
       const auto count = count_ones(nonquoted_structural);
       write_structural_index(tail, nonquoted_structural, pos * N + chunk_idx, count);
