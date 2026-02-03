@@ -21,12 +21,12 @@ void run_bench(std::string &data, Engine &engine) {
     engine.run_query_on(&data);
   }
 
-  std::cout << "Finished warmup..." << std::endl;
+  // std::cout << "Finished warmup..." << std::endl;
 
   auto start = std::chrono::high_resolution_clock::now();
 
   for (size_t i = 0; i < BENCH_ITERS; i++) {
-    std::cout << "Iteration " << i << "..." << std::endl;
+    // std::cout << "Iteration " << i << "..." << std::endl;
     engine.run_query_on(&data);
   }
 
