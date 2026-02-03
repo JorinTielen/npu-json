@@ -202,22 +202,25 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
   constexpr const size_t N = 64;
 
   // #pragma omp parallel for num_threads(StructuralCharacterBlock::BLOCKS_PER_CHUNK)
-  for (size_t block = 0; block < StructuralCharacterBlock::BLOCKS_PER_CHUNK; block++) {
+  // for (size_t block = 0; block < StructuralCharacterBlock::BLOCKS_PER_CHUNK; block++) {
+  {
     auto structural_index_buf = structural_buffers[!current].output.map<uint64_t *>();
-    auto tail = index.blocks[block].structural_characters.data();
-    index.blocks[block].structural_characters_count = 0;
+    // auto tail = index.blocks[block].structural_characters.data();
+    auto tail = index.block.structural_characters.data();
+    index.block.structural_characters_count = 0;
     constexpr auto total_size = CHUNK_BIT_INDEX_SIZE / 8;
     constexpr auto blocks_per_chunk = StructuralCharacterBlock::BLOCKS_PER_CHUNK;
     constexpr auto block_index_size = total_size / blocks_per_chunk;
     for (size_t i = 0; i < block_index_size; i++) {
-      auto pos = i + block * block_index_size;
+      // auto pos = i + block * block_index_size;
+      auto pos = i;
       auto nonquoted_structural = structural_index_buf[pos];
 
       nonquoted_structural = nonquoted_structural & ~index.string_index[pos];
 
       const auto count = count_ones(nonquoted_structural);
       write_structural_index(tail, nonquoted_structural, pos * N + chunk_idx, count);
-      index.blocks[block].structural_characters_count += count;
+      index.block.structural_characters_count += count;
       tail += count;
     }
   }
