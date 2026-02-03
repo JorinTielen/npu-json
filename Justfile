@@ -34,3 +34,8 @@ test-unit:
 # run npu tests
 test-npu:
   ./build/test/npu_tests build/src/aie/json.xclbin build/src/aie/json-insts.txt
+
+# clean build directory
+clean:
+  rm -rf ./build
+  meson setup build
