@@ -35,6 +35,23 @@ void ByteCode::compile_from_query(Query &query) {
   // TODO: If so, remove trailing wildcard, as it is useless.
 
   instructions.emplace_back(Opcode::RecordResult);
+  calculate_query_depth();
+}
+
+void ByteCode::calculate_query_depth() {
+  auto depth = 0;
+  for (auto instruction : instructions) {
+    switch (instruction.opcode) {
+    case Opcode::OpenArray:
+    case Opcode::OpenObject:
+    case Opcode::WildCard:
+      depth++;
+      break;
+    default:
+      break;
+    }
+    query_instruction_depth.emplace_back(depth);
+  }
 }
 
 } // namespace jsonpath
