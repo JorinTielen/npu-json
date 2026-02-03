@@ -53,8 +53,11 @@ bool test_string_index(const char *test) {
   memcpy(chunk, json.c_str(), json.length());
 
   // Setup kernel and indexer
+  std::cout << "Setting up kernel" << std::endl;
   auto kernel = std::make_unique<npu::Kernel>(json);
+  std::cout << "Setting up pipeline indexer" << std::endl;
   auto indexer = std::make_shared<npu::PipelinedIndexer>(*kernel, &json);
+  std::cout << "Finished setting up" << std::endl;
 
   // Copy expected index part from testfile
   write_expected_index(expected_index, expected_str);
@@ -69,7 +72,12 @@ bool test_string_index(const char *test) {
   auto result = false;
   for (size_t i = 0; i < index_size; i++) {
     auto eq = chunk_index->string_index[i] == expected_index[i];
-    if (!eq) result = true;
+    if (!eq) {
+      std::cout << "Error at index " << i << "\n";
+      std::cout << "Expecting: " << std::hex << expected_index[i] << "\n";
+      std::cout << "Getting:   " << std::hex << chunk_index->string_index[i] << std::endl;
+      result = true;
+    }
   }
 
   // Cleanup
