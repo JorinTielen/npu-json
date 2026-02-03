@@ -43,6 +43,9 @@ public:
   void compile_from_query(Query &query);
 
   std::vector<Instruction> instructions = {};
+  std::vector<int> query_instruction_depth = {};
+private:
+  void calculate_query_depth();
 };
 
 } // namespace jsonpath

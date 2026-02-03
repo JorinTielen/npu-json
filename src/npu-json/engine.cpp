@@ -637,22 +637,7 @@ std::optional<uint32_t*> Engine::passed_previous_structural() {
 }
 
 size_t Engine::calculate_query_depth() {
-  auto depth = 0;
-  for (size_t i = 0; i <= current_instruction_pointer; i++) {
-    auto instruction = byte_code->instructions[i];
-    using jsonpath::Opcode;
-    switch (instruction.opcode) {
-      case Opcode::OpenArray:
-      case Opcode::OpenObject:
-      case Opcode::WildCard:
-        depth++;
-        break;
-      default:
-        break;
-    }
-  }
-
-  return depth;
+  return byte_code->query_instruction_depth[current_instruction_pointer];
 }
 
 // Skip the current JSON structure.
