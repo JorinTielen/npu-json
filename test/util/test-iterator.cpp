@@ -23,8 +23,8 @@ uint32_t* TestIterator::get_next_structural_character() {
 }
 
 uint32_t* TestIterator::get_next_structural_character_in_block() {
-  if (current_pos_in_block < index.blocks[current_block].structural_characters_count) {
-    auto ptr = &index.blocks[current_block].structural_characters[current_pos_in_block];
+  if (current_pos_in_block < index.block.structural_characters_count) {
+    auto ptr = &index.block.structural_characters[current_pos_in_block];
     current_pos_in_block++;
     return ptr;
   }

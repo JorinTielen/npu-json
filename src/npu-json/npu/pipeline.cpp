@@ -100,12 +100,12 @@ uint32_t* PipelinedIterator::get_next_structural_character() {
 }
 
 uint32_t* PipelinedIterator::get_chunk_structural_index_end_ptr() {
-  auto count = index->blocks[current_block].structural_characters_count;
-  return &index->blocks[current_block].structural_characters[count];
+  auto count = index->block.structural_characters_count;
+  return &index->block.structural_characters[count];
 }
 
 void PipelinedIterator::set_chunk_structural_pos(uint32_t *pos) {
-  current_pos_in_block = pos + 1 - index->blocks[current_block].structural_characters.data();
+  current_pos_in_block = pos + 1 - index->block.structural_characters.data();
 }
 
 uint32_t* PipelinedIterator::get_next_structural_character_in_chunk() {
@@ -116,23 +116,23 @@ uint32_t* PipelinedIterator::get_next_structural_character_in_chunk() {
 
   // Try the next block, in the slim case an entire block is empty we
   // continue trying.
-  current_block++;
-  current_pos_in_block = 0;
-  while (current_block < StructuralCharacterBlock::BLOCKS_PER_CHUNK) {
-    potential_structural = get_next_structural_character_in_block();
-    if (potential_structural != nullptr) {
-      return potential_structural;
-    }
-    current_block++;
-    current_pos_in_block = 0;
-  }
+  // current_block++;
+  // current_pos_in_block = 0;
+  // while (current_block < StructuralCharacterBlock::BLOCKS_PER_CHUNK) {
+  //   potential_structural = get_next_structural_character_in_block();
+  //   if (potential_structural != nullptr) {
+  //     return potential_structural;
+  //   }
+  //   current_block++;
+  //   current_pos_in_block = 0;
+  // }
 
   return nullptr;
 }
 
 uint32_t* PipelinedIterator::get_next_structural_character_in_block() {
-  if (current_pos_in_block < index->blocks[current_block].structural_characters_count) {
-    auto ptr = &index->blocks[current_block].structural_characters[current_pos_in_block];
+  if (current_pos_in_block < index->block.structural_characters_count) {
+    auto ptr = &index->block.structural_characters[current_pos_in_block];
     current_pos_in_block++;
     return ptr;
   }
