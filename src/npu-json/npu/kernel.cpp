@@ -52,31 +52,19 @@ Kernel::Kernel(std::string &json) {
 
   // Copy JSON to input buffer
   memcpy(json_data_input.map<uint8_t *>(), json.c_str(), json.length());
+  // json_data_input.write(json.c_str());
   memset(json_data_input.map<uint8_t *>() + json.length(), ' ', input_buffer_size_structural - json.length());
 
   // Zero out output buffers
-  memset(string_buffers[0].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
+  // memset(string_buffers[0].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
   string_buffers[0].output.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  memset(string_buffers[1].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
+  // memset(string_buffers[1].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
   string_buffers[1].output.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-  memset(structural_buffers[0].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
-  structural_buffers[0].output.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  memset(structural_buffers[1].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
-  structural_buffers[1].output.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-}
-
-template<char C>
-__attribute__((always_inline)) void build_character_index(const char *block, uint64_t *index) {
-  constexpr const size_t N = 64;
-
-  const __m512i mask = _mm512_set1_epi8(C);
-
-  for (size_t i = 0; i < Engine::BLOCK_SIZE; i += N) {
-    auto addr = reinterpret_cast<const __m512i *>(&block[i]);
-    __m512i data = _mm512_loadu_si512(addr);
-    *index++ = _mm512_cmpeq_epu8_mask(data, mask);;
-  }
+  // memset(structural_buffers[0].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
+  // structural_buffers[0].output.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  // memset(structural_buffers[1].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
+  // structural_buffers[1].output.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 }
 
 __attribute__((always_inline)) inline uint64_t trailing_zeroes(uint64_t mask) {
@@ -145,6 +133,22 @@ void construct_escape_carry_index(const char *chunk, ChunkIndex &index, bool fir
   tracer.finish_trace(trace);
 }
 
+static inline __attribute__((always_inline))
+void build_dual_character_index(const char *block, uint64_t *idx_quote, uint64_t *idx_slash) {
+  constexpr const size_t N = 64; // 512 bits
+
+  const __m512i mask_quote = _mm512_set1_epi8('"');
+  const __m512i mask_slash = _mm512_set1_epi8('\\');
+
+  for (size_t i = 0; i < Engine::BLOCK_SIZE; i += N) {
+    auto addr = reinterpret_cast<const __m512i *>(&block[i]);
+    __m512i data = _mm512_loadu_si512(addr);
+
+    *idx_quote++ = _mm512_cmpeq_epu8_mask(data, mask_quote);
+    *idx_slash++ = _mm512_cmpeq_epu8_mask(data, mask_slash);
+  }
+}
+
 void Kernel::prepare_kernel_input(const char *chunk, ChunkIndex &index, bool first_escape_carry, size_t buffer) {
   auto& tracer = util::Tracer::get_instance();
 
@@ -163,8 +167,11 @@ void Kernel::prepare_kernel_input(const char *chunk, ChunkIndex &index, bool fir
     auto idx = block * (INDEX_BLOCK_SIZE * 2 + 4);
     auto first_index_block = reinterpret_cast<uint64_t *>(&input_buf[idx]);
     auto second_index_block = reinterpret_cast<uint64_t *>(&input_buf[idx + INDEX_BLOCK_SIZE]);
-    build_character_index<'"'>(&chunk[block * Engine::BLOCK_SIZE], first_index_block);
-    build_character_index<'\\'>(&chunk[block * Engine::BLOCK_SIZE], second_index_block);
+    build_dual_character_index(
+      &chunk[block * Engine::BLOCK_SIZE],
+      first_index_block,
+      second_index_block
+    );
     uint32_t *buf_in_carry = (uint32_t *)&input_buf[idx + INDEX_BLOCK_SIZE * 2];
     *buf_in_carry = index.escape_carry_index[block];
   }
