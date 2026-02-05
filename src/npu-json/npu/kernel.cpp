@@ -198,8 +198,7 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
   for (size_t block = 0; block < BLOCKS_IN_CHUNK_COUNT; block++) {
     for (size_t i = 0; i < VECTORS_IN_BLOCK; i++) {
       auto idx = block * VECTORS_IN_BLOCK + i;
-      index.string_index[idx] = last_block_inside_string
-        ? ~string_index_buf[idx] : string_index_buf[idx];
+      index.string_index[idx] = string_index_buf[idx] ^ (-static_cast<uint64_t>(last_block_inside_string));
     }
     auto last_vector = index.string_index[(block + 1) * VECTORS_IN_BLOCK - 1];
     last_block_inside_string = static_cast<int64_t>(last_vector) >> 63;
