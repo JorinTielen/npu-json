@@ -18,7 +18,7 @@ void run_bench(std::string &data, Engine &engine) {
   constexpr size_t BENCH_ITERS = 100;
 
   for (size_t i = 0; i < WARMUP_ITERS; i++) {
-    engine.run_query_on(&data);
+    engine.run_query_on(data);
   }
 
   // std::cout << "Finished warmup..." << std::endl;
@@ -27,7 +27,7 @@ void run_bench(std::string &data, Engine &engine) {
 
   for (size_t i = 0; i < BENCH_ITERS; i++) {
     // std::cout << "Iteration " << i << "..." << std::endl;
-    engine.run_query_on(&data);
+    engine.run_query_on(data);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -42,7 +42,7 @@ void run_bench(std::string &data, Engine &engine) {
 }
 
 void run_single(std::string &data, Engine &engine) {
-  auto results_set = engine.run_query_on(&data);
+  auto results_set = engine.run_query_on(data);
   // for (size_t i = 0; i < results_set->get_result_count(); i++) {
   //   std::cout << results_set->extract_result(i, data) << std::endl;
   // }

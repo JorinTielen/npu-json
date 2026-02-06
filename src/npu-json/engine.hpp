@@ -56,13 +56,13 @@ struct StackFrame {
 class Engine {
 public:
   // Must be kept in sync with the DATA_CHUNK_SIZE AND DATA_BLOCK_SIZE in `src/aie/gen_mlir_design.py`.
-  static constexpr size_t BLOCK_SIZE = 1024;
-  static constexpr size_t CHUNK_SIZE = 16 * 1024 * BLOCK_SIZE;
+  static constexpr size_t BLOCK_SIZE = 16 * 1024;
+  static constexpr size_t CHUNK_SIZE = 1 * 1024 * BLOCK_SIZE;
 
-  Engine(jsonpath::Query &query, std::string &json);
+  Engine(jsonpath::Query &query, std::string_view json);
   ~Engine();
 
-  std::shared_ptr<ResultSet> run_query_on(const std::string *const json);
+  std::shared_ptr<ResultSet> run_query_on(const std::string_view json);
 private:
   std::unique_ptr<jsonpath::ByteCode> byte_code;
   std::unique_ptr<npu::PipelinedIterator> iterator;

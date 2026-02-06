@@ -42,7 +42,6 @@ void string_index_aie(uint8_t *__restrict in_buffer, uint64_t *__restrict index_
   uint64_t prev_is_escaped = uint64_t(*carry_ptr);
 
   AIE_PREPARE_FOR_PIPELINING
-  AIE_LOOP_RANGE(16, 16)
   for (unsigned int i = 0; i < n; i += V) {
     // Scan for quote and escape characters in input
     uint64_t quotes = *quotes_ptr++;
@@ -92,26 +91,25 @@ void structural_character_index_aie(
   const aie::vector<uint8_t, V> comma_mask = aie::broadcast<uint8_t, V>(',');
 
   AIE_PREPARE_FOR_PIPELINING
-  AIE_LOOP_RANGE(16, 16)
   for (size_t i = 0; i < n; i += V) {
     const aie::vector<uint8_t, V> data = aie::load_v<V>(data_ptr);
     data_ptr += V;
 
-    auto brace_open = aie::eq(data, brace_open_mask).to_uint64();
-    auto brace_close = aie::eq(data, brace_close_mask).to_uint64();
-    uint64_t braces = brace_open | brace_close;
+    auto brace_open = aie::eq(data, brace_open_mask);
+    auto brace_close = aie::eq(data, brace_close_mask);
+    auto braces = brace_open | brace_close;
 
-    auto bracket_open = aie::eq(data, bracket_open_mask).to_uint64();
-    auto bracket_close = aie::eq(data, bracket_close_mask).to_uint64();
-    uint64_t brackets = bracket_open | bracket_close;
+    auto bracket_open = aie::eq(data, bracket_open_mask);
+    auto bracket_close = aie::eq(data, bracket_close_mask);
+    auto brackets = bracket_open | bracket_close;
 
-    auto colon = aie::eq(data, colon_mask).to_uint64();
-    auto comma = aie::eq(data, comma_mask).to_uint64();
-    uint64_t colons_and_commas = colon | comma;
+    auto colon = aie::eq(data, colon_mask);
+    auto comma = aie::eq(data, comma_mask);
+    auto colons_and_commas = colon | comma;
 
-    uint64_t structurals = braces | brackets | colons_and_commas;
+    auto structurals = braces | brackets | colons_and_commas;
 
-    *index_buffer++ = structurals;
+    *index_buffer++ = structurals.to_uint64();
   }
 }
 
