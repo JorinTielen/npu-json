@@ -62,7 +62,7 @@ public:
   Engine(jsonpath::Query &query, std::string_view json);
   ~Engine();
 
-  std::shared_ptr<ResultSet> run_query_on(const std::string_view json);
+  std::shared_ptr<ResultSet> run_query();
 private:
   std::unique_ptr<jsonpath::ByteCode> byte_code;
   std::unique_ptr<npu::PipelinedIterator> iterator;
@@ -78,17 +78,18 @@ private:
 
   bool current_matched_key_at_depth = false;
   size_t current_array_position = 0;
+  std::string_view json;
 
   // State implementations
-  void handle_open_structure(const char *const json, StructureType structure_type);
-  void handle_find_key(const char *const json, const std::string_view search_key);
-  void handle_find_range(const char *const json, const size_t start, const size_t end);
-  void handle_wildcard(const char *const json);
-  void handle_record_result(const char *const json, ResultSet &result_set);
+  void handle_open_structure(StructureType structure_type);
+  void handle_find_key(const std::string_view search_key);
+  void handle_find_range(const size_t start, const size_t end);
+  void handle_wildcard();
+  void handle_record_result(ResultSet &result_set);
 
   // State movement functions
   void advance();
-  void fallback(const char *const json);
+  void fallback();
   void abort(uint32_t* structural_character);
   void back();
 
@@ -100,5 +101,5 @@ private:
   std::optional<uint32_t*> passed_previous_structural();
   size_t calculate_query_depth();
 
-  uint32_t* skip_current_structure(const char *const json, StructureType structure_type);
+  uint32_t *skip_current_structure(StructureType structure_type);
 };
