@@ -13,7 +13,7 @@
 
 #include <npu-json/engine.hpp>
 
-Engine::Engine(jsonpath::Query &query, std::string &json) {
+Engine::Engine(jsonpath::Query &query, std::string_view json) {
   byte_code = std::make_unique<jsonpath::ByteCode>();
   byte_code->compile_from_query(query);
   stack = std::stack<StackFrame>();
@@ -23,7 +23,7 @@ Engine::Engine(jsonpath::Query &query, std::string &json) {
 
 Engine::~Engine() {}
 
-std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
+std::shared_ptr<ResultSet> Engine::run_query_on(const std::string_view json) {
   auto result_set = std::make_shared<ResultSet>();
 
   iterator->setup(json);
@@ -38,36 +38,36 @@ std::shared_ptr<ResultSet> Engine::run_query_on(const std::string *const json) {
     using jsonpath::Opcode;
     switch (current_instruction.opcode) {
       case Opcode::OpenObject: {
-        handle_open_structure(json->c_str(), StructureType::Object);
+        handle_open_structure(json.begin(), StructureType::Object);
         break;
       }
       case Opcode::OpenArray: {
-        handle_open_structure(json->c_str(), StructureType::Array);
+        handle_open_structure(json.begin(), StructureType::Array);
         break;
       }
       case Opcode::FindIndex: {
         assert(current_instruction.search_index.has_value());
         auto start = current_instruction.search_index.value();
-        handle_find_range(json->c_str(), start, start + 1);
+        handle_find_range(json.begin(), start, start + 1);
         break;
       }
       case Opcode::FindRange: {
         assert(current_instruction.search_range.has_value());
         auto [start, end] = current_instruction.search_range.value();
-        handle_find_range(json->c_str(), start, end);
+        handle_find_range(json.begin(), start, end);
         break;
       }
       case Opcode::FindKey: {
         assert(current_instruction.search_key.has_value());
-        handle_find_key(json->c_str(), current_instruction.search_key.value());
+        handle_find_key(json.begin(), current_instruction.search_key.value());
         break;
       }
       case Opcode::WildCard: {
-        handle_wildcard(json->c_str());
+        handle_wildcard(json.begin());
         break;
       }
       case Opcode::RecordResult: {
-        handle_record_result(json->c_str(), *result_set.get());
+        handle_record_result(json.begin(), *result_set.get());
         break;
       }
       default:

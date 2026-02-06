@@ -20,9 +20,9 @@ using ChunkIndexQueue = Queue<ChunkIndex, QUEUE_DEPTH>;
 // allowing for pipelined execution with the JSONPath automaton running on the CPU.
 class PipelinedIterator {
 public:
-  PipelinedIterator(std::string &json);
+  PipelinedIterator(std::string_view json);
 
-  void setup(const std::string *const json);
+  void setup(const std::string_view json);
   void reset();
 
   // Gives a pointer to the next structural character, and consumes it.
@@ -31,7 +31,7 @@ public:
   uint32_t* get_chunk_structural_index_end_ptr();
   void set_chunk_structural_pos(uint32_t *pos);
 private:
-  const std::string *json = nullptr;
+  std::string_view json = "";
 
   ChunkIndex *index = nullptr;
 
@@ -54,7 +54,7 @@ private:
 // preparing the input/output of the NPU kernels.
 class PipelinedIndexer {
 public:
-  PipelinedIndexer(Kernel &kernel, const std::string *const json)
+  PipelinedIndexer(Kernel &kernel, const std::string_view json)
     : kernel(kernel), json(json) {}
 
   void index_chunk(ChunkIndex *chunk_index, std::function<void()> callback);
@@ -64,7 +64,7 @@ public:
   bool is_at_end();
 private:
   Kernel &kernel;
-  const std::string *const json;
+  const std::string_view json;
 
   std::size_t chunk_idx = 0;
   bool chunk_carry_escape = false;

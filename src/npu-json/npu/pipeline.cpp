@@ -8,7 +8,7 @@ namespace npu {
 
 // Main function of the indexer thread
 static void run_indexer(
-    Kernel * const kernel, const std::string *const json,
+  Kernel *const kernel, const std::string_view json,
     ChunkIndexQueue *const index_queue) {
   PipelinedIndexer indexer(*kernel, json);
 
@@ -25,11 +25,11 @@ static void run_indexer(
   indexer.wait_for_last_chunk();
 }
 
-PipelinedIterator::PipelinedIterator(std::string &json)
+PipelinedIterator::PipelinedIterator(std::string_view json)
   : index_queue(std::make_unique<ChunkIndexQueue>())
   , kernel(std::make_unique<Kernel>(json)) {}
 
-void PipelinedIterator::setup(const std::string *const json) {
+void PipelinedIterator::setup(std::string_view json) {
   this->json = json;
 
   indexer_thread = std::make_unique<std::thread>([this] {
@@ -44,7 +44,7 @@ void PipelinedIterator::setup(const std::string *const json) {
 }
 
 void PipelinedIterator::reset() {
-  this->json = nullptr;
+  this->json = "";
   this->index = nullptr;
   indexer_thread.reset();
   index_queue->reset();
@@ -66,7 +66,7 @@ bool PipelinedIterator::switch_to_next_chunk() {
 
   index = nullptr;
 
-  if (chunk_idx >= json->length()) return false;
+  if (chunk_idx >= json.length()) return false;
 
   index = index_queue->claim_read_token();
 
@@ -141,7 +141,7 @@ uint32_t* PipelinedIterator::get_next_structural_character_in_block() {
 }
 
 void PipelinedIndexer::index_chunk(ChunkIndex *index, std::function<void()> callback) {
-  if (chunk_idx >= json->length()) {
+  if (chunk_idx >= json.length()) {
     throw std::logic_error("Attempted to index past end of JSON");
   }
 
@@ -156,7 +156,7 @@ void PipelinedIndexer::wait_for_last_chunk() {
 }
 
 bool PipelinedIndexer::is_at_end() {
-  return chunk_idx >= json->length();
+  return chunk_idx >= json.length();
 }
 
 } // namespace npu

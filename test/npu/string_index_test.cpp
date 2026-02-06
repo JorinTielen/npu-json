@@ -56,7 +56,7 @@ bool test_string_index(const char *test) {
   std::cout << "Setting up kernel" << std::endl;
   auto kernel = std::make_unique<npu::Kernel>(json);
   std::cout << "Setting up pipeline indexer" << std::endl;
-  auto indexer = std::make_shared<npu::PipelinedIndexer>(*kernel, &json);
+  auto indexer = std::make_shared<npu::PipelinedIndexer>(*kernel, json);
   std::cout << "Finished setting up" << std::endl;
 
   // Copy expected index part from testfile
@@ -77,6 +77,7 @@ bool test_string_index(const char *test) {
       std::cout << "Expecting: " << std::hex << expected_index[i] << "\n";
       std::cout << "Getting:   " << std::hex << chunk_index->string_index[i] << std::endl;
       result = true;
+      break;
     }
   }
 
