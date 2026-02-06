@@ -11,7 +11,7 @@
 namespace jsonpath {
 
 enum class Opcode {
-  OpenObject,
+  OpenObject = 0,
   OpenArray,
   FindKey,
   FindIndex,
