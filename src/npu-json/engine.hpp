@@ -65,6 +65,7 @@ public:
   std::shared_ptr<ResultSet> run_query();
 private:
   std::unique_ptr<jsonpath::ByteCode> byte_code;
+  jsonpath::Instruction *instructions;
   std::unique_ptr<npu::PipelinedIterator> iterator;
 
   // Engine execution state
@@ -74,7 +75,7 @@ private:
   size_t current_instruction_pointer = 0;
   size_t current_depth = 0;
   StructureType current_structure_type;
-  std::optional<uint32_t*> previous_structural;
+  uint32_t *previous_structural;
 
   bool current_matched_key_at_depth = false;
   size_t current_array_position = 0;
@@ -98,7 +99,7 @@ private:
   void exit(StructureType structure_type);
   void restore_state_from_stack(StackFrame &frame);
   void pass_structural(uint32_t* structural_character);
-  std::optional<uint32_t*> passed_previous_structural();
+  uint32_t *passed_previous_structural();
   size_t calculate_query_depth();
 
   uint32_t *skip_current_structure(StructureType structure_type);
