@@ -13,7 +13,7 @@ build/nj datasets/bestbuy.json "\$.products[*].videoChapters[*].chapter" --bench
 echo "Running benchmark: googlemaps (G1)"
 build/nj datasets/googlemaps.json "\$[*].routes[*].legs[*].steps[*].distance.text" --bench
 echo "Running benchmark: googlemaps (G2)"
-build/nj datasets/googlemaps.json "\$[*].available_travel_nodes" --bench
+build/nj datasets/googlemaps.json "\$[*].available_travel_modes" --bench
 echo "Running benchmark: nspl (N1)"
 build/nj datasets/nspl.json "\$.meta.view.columns[*].name" --bench
 echo "Running benchmark: nspl (N2)"
