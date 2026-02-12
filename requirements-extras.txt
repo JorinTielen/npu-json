@@ -1,3 +1,3 @@
-# git+https://github.com/makslevental/mlir-python-extras@f08db06
-# -f https://github.com/llvm/eudsl/releases/expanded_assets/latest
-mlir-python-extras
+git+https://github.com/makslevental/mlir-python-extras
+-f https://github.com/llvm/eudsl/releases/expanded_assets/latest
+# mlir-python-extras
