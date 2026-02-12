@@ -19,6 +19,8 @@ Engine::Engine(jsonpath::Query &query, std::string_view json) {
   stack = std::stack<StackFrame>();
   instructions = &byte_code->instructions[0];
   iterator = std::make_unique<npu::PipelinedIterator>(json);
+  previous_structural = nullptr;
+  current_structure_type = StructureType::Object;
   this->json = json;
 }
 
