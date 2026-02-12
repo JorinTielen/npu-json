@@ -9,7 +9,8 @@ _venv:
 # setup required tooling
 setup-python: _venv
   # Install MLIR-AIE Python required packages
-  .venv/bin/pip install -r requirements.txt
+  # .venv/bin/pip install -r requirements.txt
+  ./install-iron.sh
   # INstall MLIR-AIE dependencies
   .venv/bin/pip install -r requirements-mlir.txt
   # Install extras package seperately due to package prefix environment variable
