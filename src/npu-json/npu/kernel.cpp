@@ -66,7 +66,7 @@ namespace npu {
   // memset(structural_buffers[1].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
   // structural_buffers[1].output.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-  initialize_maps(json);
+  // initialize_maps(json);
 }
 
 __attribute__((always_inline)) inline uint64_t trailing_zeroes(uint64_t mask) {
@@ -151,27 +151,27 @@ void build_dual_character_index(const char *block, uint64_t *idx_quote, uint64_t
   }
 }
 
-void Kernel::initialize_maps(std::string_view &json) {
-  constexpr const size_t N = 64; // 512 bits
-
-  quote_map.reserve(json.length() / 8);
-  slash_map.reserve(json.length() / 8);
-
-  const __m512i mask_quote = _mm512_set1_epi8('"');
-  const __m512i mask_slash = _mm512_set1_epi8('\\');
-
-  uint64_t *idx_quote = reinterpret_cast<uint64_t *>(&quote_map[0]);
-  uint64_t *idx_slash = reinterpret_cast<uint64_t *>(&slash_map[0]);
-
-  for (size_t i = 0; i < json.length(); i += N) {
-    auto addr = reinterpret_cast<const __m512i *>(&json[i]);
-
-    __m512i data = _mm512_loadu_si512(addr);
-
-    *idx_quote++ = _mm512_cmpeq_epu8_mask(data, mask_quote);
-    *idx_slash++ = _mm512_cmpeq_epu8_mask(data, mask_slash);
-  }
-}
+// void Kernel::initialize_maps(std::string_view &json) {
+//   constexpr const size_t N = 64; // 512 bits
+//
+//   quote_map.reserve(json.length() / 8);
+//   slash_map.reserve(json.length() / 8);
+//
+//   const __m512i mask_quote = _mm512_set1_epi8('"');
+//   const __m512i mask_slash = _mm512_set1_epi8('\\');
+//
+//   uint64_t *idx_quote = reinterpret_cast<uint64_t *>(&quote_map[0]);
+//   uint64_t *idx_slash = reinterpret_cast<uint64_t *>(&slash_map[0]);
+//
+//   for (size_t i = 0; i < json.length(); i += N) {
+//     auto addr = reinterpret_cast<const __m512i *>(&json[i]);
+//
+//     __m512i data = _mm512_loadu_si512(addr);
+//
+//     *idx_quote++ = _mm512_cmpeq_epu8_mask(data, mask_quote);
+//     *idx_slash++ = _mm512_cmpeq_epu8_mask(data, mask_slash);
+//   }
+// }
 
 void Kernel::prepare_kernel_input(const char *chunk, ChunkIndex &index, bool first_escape_carry, size_t buffer) {
   auto& tracer = util::Tracer::get_instance();

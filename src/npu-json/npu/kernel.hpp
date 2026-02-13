@@ -35,8 +35,8 @@ private:
   xrt::bo instr;
   size_t instr_size;
   xrt::kernel kernel;
-  std::vector<uint8_t> quote_map;
-  std::vector<uint8_t> slash_map;
+  // std::vector<uint8_t> quote_map;
+  // std::vector<uint8_t> slash_map;
 
   std::optional<RunHandle> previous_run;
   bool previous_string_carry = false;
@@ -52,7 +52,7 @@ private:
 
   void prepare_kernel_input(const char *chunk, ChunkIndex &index, bool first_escape_carry, size_t buffer);
   void read_kernel_output(ChunkIndex &index, bool first_string_carry, size_t chunk_idx);
-  void initialize_maps(std::string_view &json);
+  // void initialize_maps(std::string_view &json);
 };
 
 // Outside for testing purposes
