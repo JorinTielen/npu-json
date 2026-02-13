@@ -14,7 +14,7 @@ from aie.extras.context import mlir_mod_ctx
 
 # Must be kept in sync with the CHUNK_SIZE and BLOCK_SIZE in `src/npu-json/engine.hpp`.
 # The 4 extra bytes are for the carry index
-BLOCKS_PER_CHUNK = 1 * 1024
+BLOCKS_PER_CHUNK = 512
 DATA_BLOCK_SIZE = 16 * 1024
 DATA_CHUNK_SIZE = BLOCKS_PER_CHUNK * DATA_BLOCK_SIZE
 
