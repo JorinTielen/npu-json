@@ -8,6 +8,14 @@
 #include <npu-json/jsonpath/query.hpp>
 #include <npu-json/result-set.hpp>
 
+#ifndef NPU_JSON_BLOCK_SIZE
+#define NPU_JSON_BLOCK_SIZE (16 * 1024)
+#endif
+
+#ifndef NPU_JSON_BLOCKS_PER_CHUNK
+#define NPU_JSON_BLOCKS_PER_CHUNK 512
+#endif
+
 // Forward declares
 namespace npu {
 class StructuralIndex;
@@ -56,8 +64,8 @@ struct StackFrame {
 class Engine {
 public:
   // Must be kept in sync with the DATA_CHUNK_SIZE AND DATA_BLOCK_SIZE in `src/aie/gen_mlir_design.py`.
-  static constexpr size_t BLOCK_SIZE = 16 * 1024;
-  static constexpr size_t BLOCKS_PER_CHUNK = 512;
+  static constexpr size_t BLOCK_SIZE = NPU_JSON_BLOCK_SIZE;
+  static constexpr size_t BLOCKS_PER_CHUNK = NPU_JSON_BLOCKS_PER_CHUNK;
   static constexpr size_t CHUNK_SIZE = BLOCKS_PER_CHUNK * BLOCK_SIZE;
 
   Engine(jsonpath::Query &query, std::string_view json);

@@ -2,6 +2,17 @@
 aie_compiler = find_program('clang++')
 aie_tools_root = get_option('aie-tools-root')
 
+npu_block_size = get_option('npu_block_size')
+npu_blocks_per_chunk = get_option('npu_blocks_per_chunk')
+npu_num_cols = get_option('npu_num_cols')
+npu_device = get_option('npu_device')
+aie_target_triple = get_option('aie_target_triple')
+
+kernel_source = 'json_xdna2.cc'
+if npu_device == 'npu1'
+  kernel_source = 'json_xdna1.cc'
+endif
+
 # 1. Find Python
 python = find_program('python')
 
@@ -21,10 +32,10 @@ message('Found mlir-aie include path: ' + mlir_aie_inc)
 
 kernel = custom_target(
   'kernel',
-  input : 'json.cc',
+  input : kernel_source,
   output : 'json.cc.o',
   command : [
-    aie_compiler, '-O2', '-std=c++23', '--target=aie2p-none-unknown-elf',
+    aie_compiler, '-O2', '-std=c++23', '--target=' + aie_target_triple,
     '-Wno-parentheses', '-Wno-attributes', '-Wno-macro-redefined',
     '-Wno-deprecated-declarations', '-Wno-logical-not-parentheses', '-DNDEBUG',
     '-DBIT_WIDTH=8',
@@ -39,7 +50,15 @@ mlir = custom_target(
   'json.mlir',
   input : ['gen_mlir_design.py', kernel],
   output : 'json.mlir',
-  command : [python, '@INPUT0@', '--kernel-obj', '@INPUT1@', '--out', '@OUTPUT@']
+  command : [
+    python, '@INPUT0@',
+    '--kernel-obj', '@INPUT1@',
+    '--out', '@OUTPUT@',
+    '--block-size', npu_block_size.to_string(),
+    '--blocks-per-chunk', npu_blocks_per_chunk.to_string(),
+    '--num-cols', npu_num_cols.to_string(),
+    '--aie-device', npu_device
+  ]
 )
 
 # Build insts file and Xclbin

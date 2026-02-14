@@ -4,3 +4,9 @@ option(
   value : '/opt/Xilinx/ryzen_ai-1.3.0/vitis_aie_essentials',
   description : 'Path to the AIE tools folder ($AIE_TOOLS)'
 )
+
+option('npu_block_size', type: 'integer', value: 16384, description: 'JSON input block size in bytes')
+option('npu_blocks_per_chunk', type: 'integer', value: 512, description: 'Blocks per chunk for NPU processing')
+option('npu_num_cols', type: 'integer', value: 8, description: 'Number of NPU columns')
+option('npu_device', type: 'combo', choices: ['npu1', 'npu2'], value: 'npu2', description: 'Target NPU device generation')
+option('aie_target_triple', type: 'string', value: 'aie2p-none-unknown-elf', description: 'Target triple for AIE kernel compilation')
