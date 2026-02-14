@@ -28,9 +28,16 @@ project_include_directories = [
   'src'
 ]
 
-build_args = []
+project_cpp_args = ['-O3', '-DNDEBUG', '-march=native']
 
-add_project_arguments(['-O3', '-DNDEBUG', '-march=native'], language: 'cpp')
+npu_block_size = get_option('npu_block_size')
+npu_blocks_per_chunk = get_option('npu_blocks_per_chunk')
+project_cpp_args += [
+  '-DNPU_JSON_BLOCK_SIZE=' + npu_block_size.to_string(),
+  '-DNPU_JSON_BLOCKS_PER_CHUNK=' + npu_blocks_per_chunk.to_string(),
+]
+
+add_project_arguments(project_cpp_args, language: 'cpp')
 
 npu_json_lib = shared_library(
   'npu_json_lib',
@@ -45,7 +52,6 @@ executable(
   ['src/npu-json/main.cpp'] + project_source_files,
   include_directories : project_include_directories,
   dependencies : project_dependencies,
-  c_args : build_args,
 )
 
 catch2_project = subproject('catch2', required: true)
