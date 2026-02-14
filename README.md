@@ -41,10 +41,34 @@ Repeat this step every time you are working working in a new shell.
 
 ### 3. Build the project
 
-Now we should be able to build with Meson:
+Now we should be able to build with Meson. Choose one of the presets:
 
 ```sh
-just setup-meson
+just build-hx370
+```
+
+```sh
+just build-7940hs
+```
+
+You can also configure the parameters manually:
+
+```sh
+just setup-meson-params <block_size> <blocks_per_chunk> <npu_cols> <npu_device> <aie_target>
+just build
+```
+
+Example (xdna2):
+
+```sh
+just setup-meson-params 16384 512 8 npu2 aie2p-none-unknown-elf
+just build
+```
+
+Example (xdna1):
+
+```sh
+just setup-meson-params 16384 1024 4 npu1 aie2-none-unknown-elf
 just build
 ```
 
