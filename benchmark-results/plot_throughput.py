@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot throughput benchmarks from throughput-8845.tsv.
+"""Plot throughput benchmarks from throughput-7940.tsv.
 
 Adjustable settings are grouped near the top of main().
 """
@@ -78,9 +78,9 @@ def plot_grouped_bars(
 
 def main():
     # ---- Adjustable settings ----
-    data_path = Path("throughput-8845.tsv")
-    title_1 = "Query Throughput on 8845HS against JSONPath Engines"
-    title_2 = "Query Throughput on 8845HS against non-JSONPath Engines"
+    data_path = Path("throughput-7940.tsv")
+    title_1 = "Query Throughput on 7940HS against JSONPath Engines"
+    title_2 = "Query Throughput on 7940HS against non-JSONPath Engines"
 
     # Figure size: change the tuple to adjust width/height in inches.
     figsize = (14, 8)
@@ -154,7 +154,7 @@ def main():
     )
 
     # To save instead of showing, uncomment the next line and adjust filename/dpi.
-    plt.savefig("throughput-8845.png", dpi=250)
+    plt.savefig("throughput-7940.png", dpi=250)
     # plt.show()
 
 
