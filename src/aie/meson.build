@@ -71,7 +71,7 @@ custom_target('json.xclbin',
   install_dir : 'xclbins',
   command : [
     aiecc, '--aie-generate-xclbin', '--aie-generate-npu-insts', '--no-compile-host', 
-    '--no-xchessc', '--no-xbridge',
+    '--no-xchesscc', '--no-xbridge',
     '--xclbin-name=@OUTPUT@', '--npu-insts-name=insts.txt', '@INPUT1@'
   ]
 )

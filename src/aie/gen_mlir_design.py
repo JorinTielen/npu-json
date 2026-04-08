@@ -63,12 +63,15 @@ def aie_design(
         core_tiles = tiles[2:]
 
         string_kernel = external_func(
-            "string_index", inputs=[string_block_ty, index_block_ty, np.int32]
+            "string_index",
+            inputs=[string_block_ty, index_block_ty, np.int32],
+            link_with=kernel_obj,
         )
 
         structural_kernel = external_func(
             "structural_character_index",
             inputs=[data_block_ty, index_block_ty, np.int32],
+            link_with=kernel_obj,
         )
 
         shim_fifos_in_string = [None] * num_cols
@@ -192,7 +195,7 @@ def aie_design(
         for col in range(0, num_cols):
             for row in range(0, num_rows // 2):
 
-                @core(core_tiles[row][col], kernel_obj)
+                @core(core_tiles[row][col])
                 def core_body():
                     for _ in range_(0, sys.maxsize):
                         for _ in range_(
@@ -214,7 +217,7 @@ def aie_design(
         for col in range(0, num_cols):
             for row in range(num_rows // 2, num_rows):
 
-                @core(core_tiles[row][col], kernel_obj)
+                @core(core_tiles[row][col])
                 def core_body():
                     for _ in range_(0, sys.maxsize):
                         for _ in range_(
