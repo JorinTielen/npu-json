@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include <npu-json/util/tracer.hpp>
 #include <npu-json/util/xrt.hpp>
@@ -43,10 +44,15 @@ private:
   bool previous_escape_carry = false;
 
   xrt::bo json_data_input;
+  std::vector<xrt::bo> json_chunk_inputs;
+  uint8_t *json_data_map = nullptr;
 
   size_t current = 0;
   KernelBuffer string_buffers[2];
   KernelBuffer structural_buffers[2];
+  uint8_t *string_input_maps[2] = { nullptr, nullptr };
+  uint64_t *string_output_maps[2] = { nullptr, nullptr };
+  uint64_t *structural_output_maps[2] = { nullptr, nullptr };
 
   util::trace_id trace;
 

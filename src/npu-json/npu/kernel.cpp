@@ -39,8 +39,17 @@ namespace npu {
   // Setup input/output buffers (structural character)
   // We allocate a buffer for the entire JSON and use "sub-buffers" for each chunk kernel call.
   size_t input_buffer_size_structural = (json.length() + Engine::CHUNK_SIZE - 1) / Engine::CHUNK_SIZE * Engine::CHUNK_SIZE;
+  auto chunk_count = input_buffer_size_structural / Engine::CHUNK_SIZE;
   json_data_input = xrt::bo(device, input_buffer_size_structural, XRT_BO_FLAGS_HOST_ONLY,
-                                    kernel.group_id(3));
+                                     kernel.group_id(3));
+  json_chunk_inputs.reserve(chunk_count);
+  for (size_t chunk = 0; chunk < chunk_count; chunk++) {
+    json_chunk_inputs.emplace_back(
+      json_data_input,
+      Engine::CHUNK_SIZE,
+      chunk * Engine::CHUNK_SIZE
+    );
+  }
   structural_buffers[0].output = xrt::bo(device, CHUNK_BIT_INDEX_SIZE, XRT_BO_FLAGS_HOST_ONLY,
                                          kernel.group_id(6));
   structural_buffers[1].output = xrt::bo(device, CHUNK_BIT_INDEX_SIZE, XRT_BO_FLAGS_HOST_ONLY,
@@ -50,10 +59,18 @@ namespace npu {
   memcpy(instr.map<void *>(), instr_v.data(), instr_size * sizeof(uint32_t));
   instr.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
+  json_data_map = json_data_input.map<uint8_t *>();
+  string_input_maps[0] = string_buffers[0].input.map<uint8_t *>();
+  string_input_maps[1] = string_buffers[1].input.map<uint8_t *>();
+  string_output_maps[0] = string_buffers[0].output.map<uint64_t *>();
+  string_output_maps[1] = string_buffers[1].output.map<uint64_t *>();
+  structural_output_maps[0] = structural_buffers[0].output.map<uint64_t *>();
+  structural_output_maps[1] = structural_buffers[1].output.map<uint64_t *>();
+
   // Copy JSON to input buffer
-  memcpy(json_data_input.map<uint8_t *>(), json.begin(), json.length());
-  // json_data_input.write(json.c_str());
-  memset(json_data_input.map<uint8_t *>() + json.length(), ' ', input_buffer_size_structural - json.length());
+  memcpy(json_data_map, json.begin(), json.length());
+  memset(json_data_map + json.length(), ' ', input_buffer_size_structural - json.length());
+  json_data_input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
   // Zero out output buffers
   // memset(string_buffers[0].output.map<uint8_t *>(), 0, CHUNK_BIT_INDEX_SIZE);
@@ -176,7 +193,7 @@ void build_dual_character_index(const char *block, uint64_t *idx_quote, uint64_t
 void Kernel::prepare_kernel_input(const char *chunk, ChunkIndex &index, bool first_escape_carry, size_t buffer) {
   auto& tracer = util::Tracer::get_instance();
 
-  auto input_buf = string_buffers[buffer].input.map<uint8_t *>();
+  auto input_buf = string_input_maps[buffer];
   constexpr const auto INDEX_BLOCK_SIZE = Engine::BLOCK_SIZE / 8;
   constexpr const auto BLOCKS_IN_CHUNK_COUNT = Engine::CHUNK_SIZE / Engine::BLOCK_SIZE;
 
@@ -212,12 +229,9 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
 
   auto trace = tracer.start_trace("read_kernel_output");
 
-  // Reconstruct previous chunk sub-buffer for JSON data input
-  auto sub_input = xrt::bo(json_data_input, Engine::CHUNK_SIZE, chunk_idx);
-  auto chunk = sub_input.map<const char *>();
-
   // String index rectification of (merged into memcpy)
-  auto string_index_buf = string_buffers[!current].output.map<uint64_t *>();
+  auto output_buffer = !current;
+  auto string_index_buf = string_output_maps[output_buffer];
   bool last_block_inside_string = first_string_carry;
   for (size_t block = 0; block < BLOCKS_IN_CHUNK_COUNT; block++) {
     for (size_t i = 0; i < VECTORS_IN_BLOCK; i++) {
@@ -234,7 +248,7 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
   // #pragma omp parallel for num_threads(StructuralCharacterBlock::BLOCKS_PER_CHUNK)
   // for (size_t block = 0; block < StructuralCharacterBlock::BLOCKS_PER_CHUNK; block++) {
   {
-    auto structural_index_buf = structural_buffers[!current].output.map<uint64_t *>();
+    auto structural_index_buf = structural_output_maps[output_buffer];
     // auto tail = index.blocks[block].structural_characters.data();
     auto tail = index.block.structural_characters.data();
     index.block.structural_characters_count = 0;
@@ -325,9 +339,7 @@ void Kernel::read_kernel_output(ChunkIndex &index, bool first_string_carry, size
 void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
   auto& tracer = util::Tracer::get_instance();
 
-  // Use sub-buffer for JSON data input
-  auto sub_input = xrt::bo(json_data_input, Engine::CHUNK_SIZE, chunk_idx);
-  auto chunk = sub_input.map<const char *>();
+  auto chunk = reinterpret_cast<const char *>(json_data_map + chunk_idx);
 
   // If we had a previous run, we should wait for it to finish before starting a
   // new kernel on the NPU, and ping the callback. We also have to handle inter-chunk
@@ -357,7 +369,8 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
 
   // Sync buffers to NPU device
   string_buffers[current].input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  sub_input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  auto chunk_slot = chunk_idx / Engine::CHUNK_SIZE;
+  auto &sub_input = json_chunk_inputs[chunk_slot];
 
   // Start kernel on NPU
   auto run = kernel(3, instr, instr_size, sub_input, string_buffers[current].input,
