@@ -72,6 +72,18 @@ just setup-meson-params 16384 1024 4 npu1 aie2-none-unknown-elf
 just build
 ```
 
+CPU-only SIMD backend build:
+
+```sh
+just build-cpu-only
+```
+
+CPU-only validation flow (unit + small e2e + big e2e):
+
+```sh
+just test-cpu
+```
+
 ## Usage
 
 First download the datasets with the instructions in the `datasets/` directory.

@@ -5,7 +5,11 @@ project(
   default_options : ['warning_level=3', 'cpp_std=c++20'],
 )
 
-subdir('src/aie')
+cpu_backend = get_option('cpu_backend')
+
+if not cpu_backend
+  subdir('src/aie')
+endif
 
 project_source_files = [
   'src/npu-json/jsonpath/byte-code.cpp',
@@ -19,16 +23,21 @@ project_source_files = [
   'src/npu-json/result-set.cpp',
 ]
 
-project_dependencies = [
-  dependency('xrt'),
-  dependency('openmp'),
-]
+project_dependencies = [dependency('openmp')]
+
+if not cpu_backend
+  project_dependencies += [dependency('xrt')]
+endif
 
 project_include_directories = [
   'src'
 ]
 
 project_cpp_args = ['-O3', '-DNDEBUG', '-march=native']
+
+if cpu_backend
+  project_cpp_args += ['-DNPU_JSON_CPU_BACKEND']
+endif
 
 npu_block_size = get_option('npu_block_size')
 npu_blocks_per_chunk = get_option('npu_blocks_per_chunk')

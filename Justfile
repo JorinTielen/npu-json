@@ -23,11 +23,16 @@ setup-meson:
 # setup meson build directory with NPU parameters
 setup-meson-params block_size blocks_per_chunk npu_cols npu_device aie_target:
   meson setup build --reconfigure \
+    -Dcpu_backend=false \
     -Dnpu_block_size={{block_size}} \
     -Dnpu_blocks_per_chunk={{blocks_per_chunk}} \
     -Dnpu_num_cols={{npu_cols}} \
     -Dnpu_device={{npu_device}} \
     -Daie_target_triple={{aie_target}}
+
+# setup meson build directory for cpu backend only
+setup-meson-cpu-only:
+  meson setup build --reconfigure -Dcpu_backend=true
 
 # build main application
 build *args:
@@ -43,6 +48,11 @@ build-7940hs:
   just setup-meson-params 16384 1024 4 npu1 aie2-none-unknown-elf
   just build
 
+# build cpu backend only (no npu/xrt dependencies)
+build-cpu-only:
+  just setup-meson-cpu-only
+  just build
+
 # run nj on a specic JSON file
 run json *args:
   ./build/nj datasets/{{json}}.json {{args}}
@@ -50,6 +60,13 @@ run json *args:
 # run unit tests
 test-unit:
   ninja -C build test
+
+# run full cpu backend test flow (unit + small e2e + big e2e)
+test-cpu:
+  just cpu-only
+  ninja -C build test
+  sh test/e2e/run_small_e2e.sh
+  sh test/e2e/run_big_e2e.sh
 
 # run npu tests
 test-npu:

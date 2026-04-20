@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <condition_variable>
 #include <thread>
 #include <memory>
 #include <mutex>

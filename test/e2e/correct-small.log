@@ -1,0 +1,32 @@
+build/nj test/e2e/fixtures/people.json "\$.people[*].name"
+Found 3 results!
+
+build/nj test/e2e/fixtures/people.json "\$.people[*].age"
+Found 3 results!
+
+build/nj test/e2e/fixtures/people.json "\$.people[*].tags"
+Found 3 results!
+
+build/nj test/e2e/fixtures/people.json "\$.active"
+Found 1 results!
+
+build/nj test/e2e/fixtures/store.json "\$.store.book[*].title"
+Found 2 results!
+
+build/nj test/e2e/fixtures/store.json "\$.store.book[1:2].price"
+Found 1 results!
+
+build/nj test/e2e/fixtures/store.json "\$.store.bicycle.color"
+Found 1 results!
+
+build/nj test/e2e/fixtures/store.json "\$.ids[1:3]"
+Found 2 results!
+
+build/nj test/e2e/fixtures/events.json "\$[*].type"
+Found 3 results!
+
+build/nj test/e2e/fixtures/events.json "\$[*].meta.x"
+Found 3 results!
+
+build/nj test/e2e/fixtures/events.json "\$[*].ok"
+Found 3 results!
