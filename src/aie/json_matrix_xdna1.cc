@@ -36,11 +36,9 @@ void combined_index_aie(
   static constexpr const uint64_t ODD_BITS = 0xAAAAAAAAAAAAAAAAULL;
 
   uint32_t *carry_ptr = (uint32_t *)in_buffer;
-  uint8_t *data_ptr = (uint8_t *)(in_buffer + 4);
+  uint8_t *data_ptr = (uint8_t *)(in_buffer + 64);
 
-  bool carry_in_string = (carry_ptr[0] & 1) != 0;
   bool carry_is_escaped = (carry_ptr[0] & 2) != 0;
-  uint64_t prev_in_string = carry_in_string ? ~uint64_t(0) : uint64_t(0);
   uint64_t prev_is_escaped = carry_is_escaped ? 1 : 0;
 
   const aie::vector<uint8_t, V> quote_mask = aie::broadcast<uint8_t, V>('"');
@@ -73,8 +71,6 @@ void combined_index_aie(
 
     uint64_t non_escaped_quotes = quotes & ~escaped;
     uint64_t string_index = prefix_xor(non_escaped_quotes);
-    string_index ^= prev_in_string;
-    prev_in_string = static_cast<int64_t>(string_index) >> 63;
 
     auto brace_open = aie::eq(data, brace_open_mask).to_uint64();
     auto brace_close = aie::eq(data, brace_close_mask).to_uint64();
@@ -87,8 +83,6 @@ void combined_index_aie(
     auto colon = aie::eq(data, colon_mask).to_uint64();
     auto comma = aie::eq(data, comma_mask).to_uint64();
     auto colons_and_commas = colon | comma;
-
-    auto structurals = braces | brackets | colons_and_commas;
 
     auto structurals = braces | brackets | colons_and_commas;
 

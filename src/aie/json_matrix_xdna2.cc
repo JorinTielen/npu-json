@@ -51,11 +51,9 @@ void combined_index_aie(
   static constexpr const uint64_t ODD_BITS = 0xAAAAAAAAAAAAAAAAULL;
 
   uint32_t *carry_ptr = (uint32_t *)in_buffer;
-  uint8_t *data_ptr = (uint8_t *)(in_buffer + 4);
+  uint8_t *data_ptr = (uint8_t *)(in_buffer + 64);
 
-  bool carry_in_string = (carry_ptr[0] & 1) != 0;
   bool carry_is_escaped = (carry_ptr[0] & 2) != 0;
-  uint64_t prev_in_string = carry_in_string ? ~uint64_t(0) : uint64_t(0);
   uint64_t prev_is_escaped = carry_is_escaped ? 1 : 0;
 
   // Broadcast masks for character classification (GEMM weight columns)
@@ -91,10 +89,10 @@ void combined_index_aie(
     prev_is_escaped = escape >> 63;
 
     // Step 3: String detection via prefix-XOR (inclusive scan with XOR)
+    // Output raw prefix_xor without inter-vector carry propagation.
+    // Carry propagation is done on the host side to avoid MSB divergence.
     uint64_t non_escaped_quotes = quotes & ~escaped;
     uint64_t string_index = prefix_xor(non_escaped_quotes);
-    string_index ^= prev_in_string;
-    prev_in_string = static_cast<int64_t>(string_index) >> 63;
 
     // Step 4: Structural mask combination (OR reduction of character classes)
     auto brace_open = (aie::eq(data, brace_open_mask)).to_uint64();

@@ -18,7 +18,7 @@ constexpr size_t NPU_NUM_COLS = 8;
 constexpr size_t NPU_NUM_ROWS = 2;
 constexpr size_t NPU_BLOCKS_PER_COLUMN = Engine::BLOCKS_PER_CHUNK / NPU_NUM_COLS;
 constexpr size_t NPU_BLOCKS_PER_ROW = NPU_BLOCKS_PER_COLUMN / NPU_NUM_ROWS;
-constexpr size_t NPU_INPUT_BLOCK_SIZE = sizeof(uint32_t) + Engine::BLOCK_SIZE;
+constexpr size_t NPU_INPUT_BLOCK_SIZE = 64 + Engine::BLOCK_SIZE;
 
 struct RunHandle {
   xrt::run handle;
@@ -53,9 +53,6 @@ private:
   bool previous_string_carry = false;
   bool previous_escape_carry = false;
 
-  xrt::bo json_data_input;
-  std::vector<xrt::bo> json_chunk_inputs;
-
   std::vector<char> padded_json;
   size_t json_length = 0;
 
@@ -65,9 +62,7 @@ private:
   uint64_t *string_output_maps[2] = { nullptr, nullptr };
   uint64_t *structural_output_maps[2] = { nullptr, nullptr };
 
-  util::trace_id trace;
-
-  void prepare_kernel_input(::npu::ChunkIndex &index, size_t buffer);
+  void prepare_kernel_input(::npu::ChunkIndex &index, size_t chunk_idx, size_t buffer);
   void read_kernel_output(::npu::ChunkIndex &index, size_t chunk_idx);
 };
 

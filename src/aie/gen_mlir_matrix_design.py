@@ -26,21 +26,17 @@ def aie_design(
     index_chunk_size = data_chunk_size // 8
     index_block_size = data_block_size // 8
 
-    carry_block_size = 4
+    carry_block_size = 64
     carry_chunk_size = blocks_per_chunk * carry_block_size
 
-    # Combined kernel input per block: carry (4 bytes) + raw data
+    # Combined kernel input per block: 64-byte aligned carry section + raw data
     input_block_size = carry_block_size + data_block_size
-    input_chunk_size = carry_chunk_size + data_chunk_size
+    input_chunk_size = blocks_per_chunk * input_block_size
 
     blocks_per_row = data_chunk_size // data_block_size // num_cols // num_rows
 
     @device(aie_device)
     def device_body():
-        data_chunk_ty = np.ndarray[(data_chunk_size,), np.dtype[np.uint8]]
-        data_split_ty = np.ndarray[
-            (data_block_size * num_rows,), np.dtype[np.uint8]
-        ]
         input_chunk_ty = np.ndarray[
             (input_chunk_size,), np.dtype[np.uint8]
         ]
@@ -71,7 +67,6 @@ def aie_design(
         )
 
         shim_fifos_in = [None] * num_cols
-        shim_fifos_data_in = [None] * num_cols  # Unused data input DMA (for compatibility)
         core_fifos_in = [[None for _ in range(0, num_cols)] for _ in range(0, num_rows)]
 
         shim_fifos_out_string = [None] * num_cols
@@ -105,16 +100,6 @@ def aie_design(
                 [core_fifos_in[row][col] for row in range(0, num_rows)],
                 [],
                 [i * input_block_size for i in range(0, num_rows)],
-            )
-
-        # Data input DMA (unused by cores, needed for 4-buffer runtime sequence)
-        for col in range(0, num_cols):
-            shim_fifos_data_in[col] = object_fifo(
-                f"data_in_c{col}_mem",
-                shim_tiles[col],
-                mem_tiles[col],
-                2,
-                data_split_ty,
             )
 
         # String index output
@@ -198,12 +183,11 @@ def aie_design(
                             of_out_str.release(ObjectFifoPort.Produce, 1)
                             of_out_st.release(ObjectFifoPort.Produce, 1)
 
-        # Host side data-flow movement (4 DMA operations per column, matching original design)
+        # Host side data-flow movement (3 DMA operations per column)
         @runtime_sequence(
-            data_chunk_ty, input_chunk_ty, index_chunk_ty, index_chunk_ty
+            input_chunk_ty, index_chunk_ty, index_chunk_ty
         )
         def sequence(
-            data_buffer,
             input_buffer,
             string_index_buffer,
             structural_index_buffer,
@@ -226,16 +210,8 @@ def aie_design(
                     issue_token=True,
                 )
                 npu_dma_memcpy_nd(
-                    metadata=shim_fifos_data_in[col],
-                    bd_id=2,
-                    mem=data_buffer,
-                    sizes=[1, 1, 1, data_chunk_size // num_cols],
-                    offsets=[0, 0, 0, (data_chunk_size // num_cols) * col],
-                    issue_token=True,
-                )
-                npu_dma_memcpy_nd(
                     metadata=shim_fifos_out_structural[col],
-                    bd_id=3,
+                    bd_id=2,
                     mem=structural_index_buffer,
                     sizes=[1, 1, 1, index_chunk_size // num_cols],
                     offsets=[0, 0, 0, (index_chunk_size // num_cols) * col],

@@ -67,40 +67,20 @@ NPUMatrixKernel::NPUMatrixKernel(std::string_view json) {
 
   size_t padded_json_size = (json.size() + Engine::CHUNK_SIZE - 1) / Engine::CHUNK_SIZE * Engine::CHUNK_SIZE;
   if (padded_json_size == 0) padded_json_size = Engine::CHUNK_SIZE;
-  auto chunk_count = padded_json_size / Engine::CHUNK_SIZE;
-
-  // Data buffer (raw JSON, mapped as sub-buffers per chunk - used for DMA but not by cores)
-  json_data_input = xrt::bo(device, padded_json_size, XRT_BO_FLAGS_HOST_ONLY,
-                              kernel.group_id(3));
-  json_chunk_inputs.reserve(chunk_count);
-  for (size_t chunk = 0; chunk < chunk_count; chunk++) {
-    json_chunk_inputs.emplace_back(
-      json_data_input,
-      Engine::CHUNK_SIZE,
-      chunk * Engine::CHUNK_SIZE
-    );
-  }
 
   for (size_t i = 0; i < 2; i++) {
     buffers[i].input = xrt::bo(device, input_buffer_size, XRT_BO_FLAGS_HOST_ONLY,
-                                kernel.group_id(4));
+                                kernel.group_id(3));
     buffers[i].string_output = xrt::bo(device, output_buffer_size, XRT_BO_FLAGS_HOST_ONLY,
-                                       kernel.group_id(5));
+                                       kernel.group_id(4));
     buffers[i].structural_output = xrt::bo(device, output_buffer_size, XRT_BO_FLAGS_HOST_ONLY,
-                                           kernel.group_id(6));
+                                           kernel.group_id(5));
   }
 
   memcpy(instr.map<void *>(), instr_v.data(), instr_size * sizeof(uint32_t));
   instr.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-  // Copy JSON data to the data buffer (used for DMA but not by AIE cores)
-  auto json_data_map = json_data_input.map<uint8_t *>();
-  memcpy(json_data_map, json.data(), json.length());
-  memset(json_data_map + json.length(), ' ', padded_json_size - json.length());
-  json_data_input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-  size_t padded_size = chunk_count * Engine::CHUNK_SIZE;
-  padded_json.resize(padded_size, ' ');
+  padded_json.resize(padded_json_size, ' ');
   memcpy(padded_json.data(), json.data(), json.length());
   json_length = json.length();
 
@@ -113,12 +93,14 @@ NPUMatrixKernel::NPUMatrixKernel(std::string_view json) {
 
 void NPUMatrixKernel::prepare_kernel_input(
   ::npu::ChunkIndex &index,
+  size_t chunk_idx,
   size_t buffer
 ) {
   auto &tracer = util::Tracer::get_instance();
   auto trace = tracer.start_trace("prepare_kernel_input_matrix");
 
   auto input_buf = input_maps[buffer];
+  constexpr size_t CARRY_SECTION_SIZE = 64;
 
   for (size_t col = 0; col < NPU_NUM_COLS; col++) {
     size_t column_offset = col * NPU_BLOCKS_PER_COLUMN * NPU_INPUT_BLOCK_SIZE;
@@ -130,11 +112,12 @@ void NPUMatrixKernel::prepare_kernel_input(
         uint32_t carry_flags = 0;
         if (index.escape_carry_index[block_idx]) carry_flags |= 2;
 
+        memset(input_buf + offset, 0, CARRY_SECTION_SIZE);
         memcpy(input_buf + offset, &carry_flags, sizeof(uint32_t));
 
-        size_t data_offset = block_idx * Engine::BLOCK_SIZE;
+        size_t data_offset = chunk_idx + block_idx * Engine::BLOCK_SIZE;
         const char *src = padded_json.data() + data_offset;
-        memcpy(input_buf + offset + sizeof(uint32_t), src, Engine::BLOCK_SIZE);
+        memcpy(input_buf + offset + CARRY_SECTION_SIZE, src, Engine::BLOCK_SIZE);
       }
     }
   }
@@ -153,14 +136,16 @@ void NPUMatrixKernel::read_kernel_output(
 
   auto trace = tracer.start_trace("read_kernel_output_matrix");
 
-  auto output_buffer = !current;
+  auto output_buffer = current;
 
-auto string_index_buf = string_output_maps[output_buffer];
+  auto string_index_buf = string_output_maps[output_buffer];
   auto structural_index_buf = structural_output_maps[output_buffer];
 
   bool last_inside_string = previous_string_carry;
   for (size_t i = 0; i < VECTORS_IN_CHUNK; i++) {
-    index.string_index[i] = string_index_buf[i] ^ (-static_cast<uint64_t>(last_inside_string));
+    uint64_t raw_prefix_xor = string_index_buf[i];
+    uint64_t carry_mask = last_inside_string ? ~uint64_t(0) : uint64_t(0);
+    index.string_index[i] = raw_prefix_xor ^ carry_mask;
     last_inside_string = static_cast<int64_t>(index.string_index[i]) >> 63;
   }
 
@@ -184,7 +169,21 @@ auto string_index_buf = string_output_maps[output_buffer];
 }
 
 void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
-  auto &tracer = util::Tracer::get_instance();
+  if (previous_run.has_value()) {
+    previous_run->handle.wait();
+
+    buffers[current].string_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+    buffers[current].structural_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+
+    read_kernel_output(*previous_run->index, previous_run->chunk_idx);
+
+    previous_string_carry = previous_run->index->ends_in_string();
+    previous_escape_carry = previous_run->index->ends_with_escape();
+    previous_run->callback();
+    previous_run.reset();
+
+    current = !current;
+  }
 
   ::npu::construct_escape_carry_index(
     padded_json.data() + chunk_idx,
@@ -192,41 +191,14 @@ void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::func
     previous_escape_carry
   );
 
-  if (previous_run.has_value()) {
-    prepare_kernel_input(*index, !current);
-
-    previous_run->handle.wait();
-
-    buffers[current].string_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-    buffers[current].structural_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-
-    tracer.finish_trace(trace);
-
-    current = !current;
-  } else {
-    prepare_kernel_input(*index, current);
-  }
-
-  trace = tracer.start_trace("construct_combined_index_npu_matrix");
+  prepare_kernel_input(*index, chunk_idx, current);
 
   buffers[current].input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  auto chunk_slot = chunk_idx / Engine::CHUNK_SIZE;
-  auto &sub_input = json_chunk_inputs[chunk_slot];
 
   auto run = kernel(3, instr, instr_size,
-    sub_input,
     buffers[current].input,
     buffers[current].string_output,
     buffers[current].structural_output);
-
-  if (previous_run.has_value()) {
-    read_kernel_output(*previous_run->index, previous_run->chunk_idx);
-
-    previous_string_carry = previous_run->index->ends_in_string();
-    previous_escape_carry = previous_run->index->ends_with_escape();
-    previous_run->callback();
-    previous_run.reset();
-  }
 
   previous_run = std::optional<RunHandle>({run, index, chunk_idx, callback});
 }
@@ -236,16 +208,10 @@ void NPUMatrixKernel::wait_for_previous() {
     throw std::logic_error("Called wait for previous without previous run");
   }
 
-  auto &tracer = util::Tracer::get_instance();
-
   previous_run->handle.wait();
 
   buffers[current].string_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
   buffers[current].structural_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-
-  tracer.finish_trace(trace);
-
-  current = !current;
 
   read_kernel_output(*previous_run->index, previous_run->chunk_idx);
 
