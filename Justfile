@@ -62,6 +62,22 @@ build-cpu-matrix:
   just setup-meson-cpu-matrix
   just build
 
+# build npu matrix backend (npu-accelerated combined kernel)
+build-npu-matrix block_size blocks_per_chunk npu_cols npu_device aie_target:
+  meson setup build --reconfigure \
+    -Dnpu_matrix_backend=true \
+    -Dnpu_block_size={{block_size}} \
+    -Dnpu_blocks_per_chunk={{blocks_per_chunk}} \
+    -Dnpu_num_cols={{npu_cols}} \
+    -Dnpu_device={{npu_device}} \
+    -Daie_target_triple={{aie_target}}
+
+  just build
+
+# build with hx370 defaults (xdna2) for npu matrix
+build-npu-matrix-hx370:
+  just build-npu-matrix 16384 512 8 npu2 aie2p-none-unknown-elf
+
 # run nj on a specic JSON file
 run json *args:
   ./build/nj datasets/{{json}}.json {{args}}

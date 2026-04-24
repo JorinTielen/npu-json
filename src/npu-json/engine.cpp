@@ -14,6 +14,8 @@
 
 #ifdef NPU_JSON_MATRIX_BACKEND
 #include <npu-json/matrix/pipeline.hpp>
+#elif defined(NPU_JSON_NPU_MATRIX_BACKEND)
+#include <npu-json/matrix/npu/pipeline.hpp>
 #else
 #include <npu-json/npu/pipeline.hpp>
 #endif
@@ -25,6 +27,8 @@ Engine::Engine(jsonpath::Query &query, std::string_view json) {
   instructions = &byte_code->instructions[0];
   #ifdef NPU_JSON_MATRIX_BACKEND
   iterator = std::make_unique<matrix::MatrixPipeline>(json);
+#elif defined(NPU_JSON_NPU_MATRIX_BACKEND)
+  iterator = std::make_unique<matrix::npu::NPUMatrixPipeline>(json);
 #else
   iterator = std::make_unique<npu::PipelinedIterator>(json);
 #endif

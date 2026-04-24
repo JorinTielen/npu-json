@@ -75,3 +75,55 @@ custom_target('json.xclbin',
     '--xclbin-name=@OUTPUT@', '--npu-insts-name=insts.txt', '@INPUT1@'
   ]
 )
+
+# Matrix (combined) kernel AIE build
+npu_matrix_backend = get_option('npu_matrix_backend')
+
+if npu_matrix_backend
+  matrix_kernel_source = 'json_matrix_xdna2.cc'
+  if npu_device == 'npu1'
+    matrix_kernel_source = 'json_matrix_xdna1.cc'
+  endif
+
+  matrix_kernel = custom_target(
+    'matrix_kernel',
+    input : matrix_kernel_source,
+    output : 'json_matrix.cc.o',
+    command : [
+      aie_compiler, '-O2', '-std=c++23', '--target=' + aie_target_triple,
+      '-Wno-parentheses', '-Wno-attributes', '-Wno-macro-redefined',
+      '-Wno-deprecated-declarations', '-Wno-logical-not-parentheses', '-DNDEBUG',
+      '-DBIT_WIDTH=8',
+      '-I', aie_tools_root + '/include',
+      '-I', mlir_aie_inc,
+      '-c', '@INPUT@', '-o', '@OUTPUT@'
+    ]
+  )
+
+  matrix_mlir = custom_target(
+    'json_matrix.mlir',
+    input : ['gen_mlir_matrix_design.py', matrix_kernel],
+    output : 'json_matrix.mlir',
+    command : [
+      python, '@INPUT0@',
+      '--kernel-obj', '@INPUT1@',
+      '--out', '@OUTPUT@',
+      '--block-size', npu_block_size.to_string(),
+      '--blocks-per-chunk', npu_blocks_per_chunk.to_string(),
+      '--num-cols', npu_num_cols.to_string(),
+      '--aie-device', npu_device
+    ]
+  )
+
+  custom_target('json_matrix.xclbin',
+    input : [matrix_kernel, matrix_mlir],
+    output : 'json_matrix.xclbin',
+    install : true,
+    install_dir : 'xclbins',
+    command : [
+      aiecc, '--aie-generate-xclbin', '--aie-generate-npu-insts', '--no-compile-host',
+      '--no-xchesscc', '--no-xbridge',
+      '--xclbin-name=@OUTPUT@', '--npu-insts-name=json_matrix_insts.txt', '@INPUT1@'
+    ]
+  )
+endif

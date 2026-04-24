@@ -11,6 +11,10 @@ if matrix_backend
   test_files += ['unit/matrix_backend_test.cpp']
 endif
 
+if npu_matrix_backend
+  test_files += ['unit/npu_matrix_backend_test.cpp']
+endif
+
 test_exe = executable(
   'unit_tests',
   test_files,
@@ -22,7 +26,7 @@ test_exe = executable(
 test('unit_test', test_exe)
 
 # Build NPU end-to-end tests
-if not cpu_backend and not matrix_backend
+if not cpu_backend and not matrix_backend and not npu_matrix_backend
   executable(
     'npu_tests',
     'npu/string_index_test.cpp',

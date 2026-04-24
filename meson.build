@@ -7,8 +7,13 @@ project(
 
 cpu_backend = get_option('cpu_backend')
 matrix_backend = get_option('matrix_backend')
+npu_matrix_backend = get_option('npu_matrix_backend')
 
-if not cpu_backend and not matrix_backend
+if not cpu_backend and not matrix_backend and not npu_matrix_backend
+  subdir('src/aie')
+endif
+
+if npu_matrix_backend
   subdir('src/aie')
 endif
 
@@ -32,9 +37,21 @@ if matrix_backend
   ]
 endif
 
+if npu_matrix_backend
+  project_source_files += [
+    'src/npu-json/matrix/ops.cpp',
+    'src/npu-json/matrix/npu/kernel.cpp',
+    'src/npu-json/matrix/npu/pipeline.cpp',
+  ]
+endif
+
 project_dependencies = [dependency('openmp')]
 
 if not cpu_backend and not matrix_backend
+  project_dependencies += [dependency('xrt')]
+endif
+
+if npu_matrix_backend
   project_dependencies += [dependency('xrt')]
 endif
 
@@ -51,6 +68,10 @@ endif
 if matrix_backend
   project_cpp_args += ['-DNPU_JSON_CPU_BACKEND']
   project_cpp_args += ['-DNPU_JSON_MATRIX_BACKEND']
+endif
+
+if npu_matrix_backend
+  project_cpp_args += ['-DNPU_JSON_NPU_MATRIX_BACKEND']
 endif
 
 npu_block_size = get_option('npu_block_size')
