@@ -20,7 +20,7 @@
 namespace npu {
 class StructuralIndex;
 class StructuralIndexer;
-class PipelinedIterator;
+class StructuralIterator;
 }
 
 namespace structural {
@@ -75,7 +75,7 @@ public:
 private:
   std::unique_ptr<jsonpath::ByteCode> byte_code;
   jsonpath::Instruction *instructions;
-  std::unique_ptr<npu::PipelinedIterator> iterator;
+  std::unique_ptr<npu::StructuralIterator> iterator;
 
   // Engine execution state
   bool executing_query = false;

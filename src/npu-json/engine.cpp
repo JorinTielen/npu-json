@@ -7,18 +7,27 @@
 
 #include <npu-json/jsonpath/byte-code.hpp>
 #include <npu-json/jsonpath/query.hpp>
-#include <npu-json/npu/pipeline.hpp>
+#include <npu-json/engine.hpp>
+#include <npu-json/npu/iterator.hpp>
 #include <npu-json/util/debug.hpp>
 #include <npu-json/error.hpp>
 
-#include <npu-json/engine.hpp>
+#ifdef NPU_JSON_MATRIX_BACKEND
+#include <npu-json/matrix/pipeline.hpp>
+#else
+#include <npu-json/npu/pipeline.hpp>
+#endif
 
 Engine::Engine(jsonpath::Query &query, std::string_view json) {
   byte_code = std::make_unique<jsonpath::ByteCode>();
   byte_code->compile_from_query(query);
   stack = std::stack<StackFrame>();
   instructions = &byte_code->instructions[0];
+  #ifdef NPU_JSON_MATRIX_BACKEND
+  iterator = std::make_unique<matrix::MatrixPipeline>(json);
+#else
   iterator = std::make_unique<npu::PipelinedIterator>(json);
+#endif
   previous_structural = nullptr;
   current_structure_type = StructureType::Object;
   this->json = json;

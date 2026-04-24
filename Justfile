@@ -34,6 +34,10 @@ setup-meson-params block_size blocks_per_chunk npu_cols npu_device aie_target:
 setup-meson-cpu-only:
   meson setup build --reconfigure -Dcpu_backend=true
 
+# setup meson build directory for matrix backend (cpu, no npu/xrt dependencies)
+setup-meson-cpu-matrix:
+  meson setup build --reconfigure -Dmatrix_backend=true
+
 # build main application
 build *args:
   meson compile -C build {{args}}
@@ -51,6 +55,11 @@ build-7940hs:
 # build cpu backend only (no npu/xrt dependencies)
 build-cpu-only:
   just setup-meson-cpu-only
+  just build
+
+# build matrix backend (cpu, no npu/xrt dependencies)
+build-cpu-matrix:
+  just setup-meson-cpu-matrix
   just build
 
 # run nj on a specic JSON file

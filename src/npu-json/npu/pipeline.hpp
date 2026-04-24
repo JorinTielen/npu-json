@@ -7,6 +7,7 @@
 
 #include <npu-json/npu/chunk-index.hpp>
 #include <npu-json/npu/kernel.hpp>
+#include <npu-json/npu/iterator.hpp>
 #include <npu-json/npu/queue.hpp>
 #include <npu-json/engine.hpp>
 
@@ -18,18 +19,18 @@ using ChunkIndexQueue = Queue<ChunkIndex, QUEUE_DEPTH>;
 
 // Structural iterator that indexes the JSON on the NPU in a background thread,
 // allowing for pipelined execution with the JSONPath automaton running on the CPU.
-class PipelinedIterator {
+class PipelinedIterator : public StructuralIterator {
 public:
   PipelinedIterator(std::string_view json);
 
-  void setup(const std::string_view json);
-  void reset();
+  void setup(std::string_view json) override;
+  void reset() override;
 
   // Gives a pointer to the next structural character, and consumes it.
-  uint32_t* get_next_structural_character();
+  uint32_t* get_next_structural_character() override;
 
-  uint32_t* get_chunk_structural_index_end_ptr();
-  void set_chunk_structural_pos(uint32_t *pos);
+  uint32_t* get_chunk_structural_index_end_ptr() override;
+  void set_chunk_structural_pos(uint32_t *pos) override;
 private:
   std::string_view json = "";
 
