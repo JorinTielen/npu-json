@@ -111,11 +111,8 @@ void combined_index_aie(
 
     auto structurals = braces | brackets | colons_and_commas;
 
-    // Step 5: Remove structural characters inside strings
-    uint64_t nonquoted_structural = structurals & ~string_index;
-
     *string_out++ = string_index;
-    *structural_out++ = nonquoted_structural;
+    *structural_out++ = structurals;
   }
 }
 

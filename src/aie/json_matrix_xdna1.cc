@@ -90,10 +90,10 @@ void combined_index_aie(
 
     auto structurals = braces | brackets | colons_and_commas;
 
-    uint64_t nonquoted_structural = structurals & ~string_index;
+    auto structurals = braces | brackets | colons_and_commas;
 
     *string_out++ = string_index;
-    *structural_out++ = nonquoted_structural;
+    *structural_out++ = structurals;
   }
 }
 

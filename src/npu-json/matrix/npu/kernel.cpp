@@ -4,6 +4,7 @@
 
 #include <npu-json/matrix/npu/kernel.hpp>
 #include <npu-json/npu/chunk-index.hpp>
+#include <npu-json/npu/kernel.hpp>
 #include <npu-json/util/debug.hpp>
 #include <npu-json/util/tracer.hpp>
 #include <npu-json/engine.hpp>
@@ -61,25 +62,16 @@ NPUMatrixKernel::NPUMatrixKernel(std::string_view json) {
   instr = xrt::bo(device, instr_size * sizeof(uint32_t),
                    XCL_BO_FLAGS_CACHEABLE, kernel.group_id(1));
 
-  size_t input_buffer_size = Engine::CHUNK_SIZE + 4;
+  size_t input_buffer_size = Engine::BLOCKS_PER_CHUNK * NPU_INPUT_BLOCK_SIZE;
   size_t output_buffer_size = Engine::CHUNK_SIZE / 8;
 
-  auto chunk_count = (json.length() + Engine::CHUNK_SIZE - 1) / Engine::CHUNK_SIZE;
+  size_t padded_json_size = (json.size() + Engine::CHUNK_SIZE - 1) / Engine::CHUNK_SIZE * Engine::CHUNK_SIZE;
+  if (padded_json_size == 0) padded_json_size = Engine::CHUNK_SIZE;
+  auto chunk_count = padded_json_size / Engine::CHUNK_SIZE;
 
-  // Allocate input/output with ping-pong buffering
-  for (size_t i = 0; i < 2; i++) {
-    buffers[i].input = xrt::bo(device, input_buffer_size, XRT_BO_FLAGS_HOST_ONLY,
-                                kernel.group_id(4));
-    buffers[i].string_output = xrt::bo(device, output_buffer_size, XRT_BO_FLAGS_HOST_ONLY,
-                                       kernel.group_id(5));
-    buffers[i].structural_output = xrt::bo(device, output_buffer_size, XRT_BO_FLAGS_HOST_ONLY,
-                                           kernel.group_id(6));
-  }
-
-  // Full JSON data buffer
-  size_t padded_json_size = chunk_count * Engine::CHUNK_SIZE;
+  // Data buffer (raw JSON, mapped as sub-buffers per chunk - used for DMA but not by cores)
   json_data_input = xrt::bo(device, padded_json_size, XRT_BO_FLAGS_HOST_ONLY,
-                             kernel.group_id(3));
+                              kernel.group_id(3));
   json_chunk_inputs.reserve(chunk_count);
   for (size_t chunk = 0; chunk < chunk_count; chunk++) {
     json_chunk_inputs.emplace_back(
@@ -89,17 +81,29 @@ NPUMatrixKernel::NPUMatrixKernel(std::string_view json) {
     );
   }
 
-  // Copy instructions to buffer
+  for (size_t i = 0; i < 2; i++) {
+    buffers[i].input = xrt::bo(device, input_buffer_size, XRT_BO_FLAGS_HOST_ONLY,
+                                kernel.group_id(4));
+    buffers[i].string_output = xrt::bo(device, output_buffer_size, XRT_BO_FLAGS_HOST_ONLY,
+                                       kernel.group_id(5));
+    buffers[i].structural_output = xrt::bo(device, output_buffer_size, XRT_BO_FLAGS_HOST_ONLY,
+                                           kernel.group_id(6));
+  }
+
   memcpy(instr.map<void *>(), instr_v.data(), instr_size * sizeof(uint32_t));
   instr.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-  // Copy JSON to input buffer
-  json_data_map = json_data_input.map<uint8_t *>();
-  memcpy(json_data_map, json.begin(), json.length());
+  // Copy JSON data to the data buffer (used for DMA but not by AIE cores)
+  auto json_data_map = json_data_input.map<uint8_t *>();
+  memcpy(json_data_map, json.data(), json.length());
   memset(json_data_map + json.length(), ' ', padded_json_size - json.length());
   json_data_input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-  // Map buffers
+  size_t padded_size = chunk_count * Engine::CHUNK_SIZE;
+  padded_json.resize(padded_size, ' ');
+  memcpy(padded_json.data(), json.data(), json.length());
+  json_length = json.length();
+
   for (size_t i = 0; i < 2; i++) {
     input_maps[i] = buffers[i].input.map<uint8_t *>();
     string_output_maps[i] = buffers[i].string_output.map<uint64_t *>();
@@ -108,9 +112,7 @@ NPUMatrixKernel::NPUMatrixKernel(std::string_view json) {
 }
 
 void NPUMatrixKernel::prepare_kernel_input(
-  const char *chunk,
   ::npu::ChunkIndex &index,
-  bool first_escape_carry,
   size_t buffer
 ) {
   auto &tracer = util::Tracer::get_instance();
@@ -118,47 +120,55 @@ void NPUMatrixKernel::prepare_kernel_input(
 
   auto input_buf = input_maps[buffer];
 
-  // Build combined input buffer: 4 bytes carry + raw JSON data
-  // Carry flags: bit 0 = string carry, bit 1 = escape carry
-  uint32_t carry_flags = 0;
-  if (first_escape_carry) carry_flags |= 2;
-  // Note: string carry is handled via read_kernel_output
-  memcpy(input_buf, &carry_flags, 4);
-  memcpy(input_buf + 4, chunk, Engine::CHUNK_SIZE);
+  for (size_t col = 0; col < NPU_NUM_COLS; col++) {
+    for (size_t row = 0; row < NPU_NUM_ROWS; row++) {
+      for (size_t b = 0; b < NPU_BLOCKS_PER_ROW; b++) {
+        size_t block_idx = col * NPU_BLOCKS_PER_COLUMN + row * NPU_BLOCKS_PER_ROW + b;
+        size_t offset = (col * NPU_BLOCKS_PER_COLUMN + row * NPU_BLOCKS_PER_ROW + b) * NPU_INPUT_BLOCK_SIZE;
+
+        uint32_t carry_flags = 0;
+        if (index.escape_carry_index[block_idx]) carry_flags |= 2;
+
+        memcpy(input_buf + offset, &carry_flags, sizeof(uint32_t));
+
+        size_t data_offset = block_idx * Engine::BLOCK_SIZE;
+        size_t copy_size = Engine::BLOCK_SIZE;
+        const char *src = padded_json.data() + data_offset;
+        memcpy(input_buf + offset + sizeof(uint32_t), src, copy_size);
+      }
+    }
+  }
 
   tracer.finish_trace(trace);
 }
 
 void NPUMatrixKernel::read_kernel_output(
   ::npu::ChunkIndex &index,
-  bool first_string_carry,
   size_t chunk_idx
 ) {
   auto &tracer = util::Tracer::get_instance();
 
   constexpr const size_t VECTOR_BYTES = 64;
-  constexpr const auto VECTORS_IN_CHUNK = Engine::CHUNK_SIZE / VECTOR_BYTES / 8;
+  constexpr const auto VECTORS_IN_CHUNK = Engine::CHUNK_SIZE / VECTOR_BYTES;
 
   auto trace = tracer.start_trace("read_kernel_output_matrix");
 
   auto output_buffer = !current;
 
-  // Read string index output
-  auto string_index_buf = string_output_maps[output_buffer];
-  bool last_block_inside_string = first_string_carry;
+auto string_index_buf = string_output_maps[output_buffer];
+  auto structural_index_buf = structural_output_maps[output_buffer];
+
+  bool last_inside_string = previous_string_carry;
   for (size_t i = 0; i < VECTORS_IN_CHUNK; i++) {
-    index.string_index[i] = string_index_buf[i] ^ (-static_cast<uint64_t>(last_block_inside_string));
-    auto last_vector = index.string_index[i];
-    last_block_inside_string = static_cast<int64_t>(last_vector) >> 63;
+    index.string_index[i] = string_index_buf[i] ^ (-static_cast<uint64_t>(last_inside_string));
+    last_inside_string = static_cast<int64_t>(index.string_index[i]) >> 63;
   }
 
-  // Read structural index output and convert to position array
-  auto structural_index_buf = structural_output_maps[output_buffer];
   auto tail = index.block.structural_characters.data();
   index.block.structural_characters_count = 0;
 
   for (size_t i = 0; i < VECTORS_IN_CHUNK; i++) {
-    uint64_t nonquoted_structural = structural_index_buf[i];
+    uint64_t nonquoted_structural = structural_index_buf[i] & ~index.string_index[i];
 
     if (nonquoted_structural == 0) {
       continue;
@@ -176,10 +186,14 @@ void NPUMatrixKernel::read_kernel_output(
 void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
   auto &tracer = util::Tracer::get_instance();
 
-  auto chunk = reinterpret_cast<const char *>(json_data_map + chunk_idx);
+  ::npu::construct_escape_carry_index(
+    padded_json.data() + chunk_idx,
+    *index,
+    previous_escape_carry
+  );
 
   if (previous_run.has_value()) {
-    prepare_kernel_input(chunk, *index, previous_escape_carry, !current);
+    prepare_kernel_input(*index, !current);
 
     previous_run->handle.wait();
 
@@ -190,7 +204,7 @@ void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::func
 
     current = !current;
   } else {
-    prepare_kernel_input(chunk, *index, previous_escape_carry, current);
+    prepare_kernel_input(*index, current);
   }
 
   trace = tracer.start_trace("construct_combined_index_npu_matrix");
@@ -206,18 +220,14 @@ void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::func
     buffers[current].structural_output);
 
   if (previous_run.has_value()) {
-    read_kernel_output(
-      *previous_run->index,
-      previous_string_carry,
-      previous_run->chunk_idx
-    );
+    read_kernel_output(*previous_run->index, previous_run->chunk_idx);
 
     previous_string_carry = previous_run->index->ends_in_string();
+    previous_escape_carry = previous_run->index->ends_with_escape();
     previous_run->callback();
     previous_run.reset();
   }
 
-  previous_escape_carry = index->ends_with_escape();
   previous_run = std::optional<RunHandle>({run, index, chunk_idx, callback});
 }
 
@@ -237,13 +247,10 @@ void NPUMatrixKernel::wait_for_previous() {
 
   current = !current;
 
-  read_kernel_output(
-    *previous_run->index,
-    previous_string_carry,
-    previous_run->chunk_idx
-  );
+  read_kernel_output(*previous_run->index, previous_run->chunk_idx);
 
   previous_string_carry = previous_run->index->ends_in_string();
+  previous_escape_carry = previous_run->index->ends_with_escape();
   previous_run->callback();
   previous_run.reset();
 }
