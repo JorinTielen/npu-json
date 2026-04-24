@@ -51,10 +51,11 @@ private:
 
   std::optional<RunHandle> previous_run;
   bool previous_string_carry = false;
-  bool previous_escape_carry = false;
 
   std::vector<char> padded_json;
   size_t json_length = 0;
+
+  std::vector<bool> chunk_escape_carries;
 
   size_t current = 0;
   KernelBuffer buffers[2];

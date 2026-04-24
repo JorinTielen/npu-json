@@ -84,6 +84,28 @@ NPUMatrixKernel::NPUMatrixKernel(std::string_view json) {
   memcpy(padded_json.data(), json.data(), json.length());
   json_length = json.length();
 
+  auto chunk_count = padded_json_size / Engine::CHUNK_SIZE;
+  chunk_escape_carries.resize(chunk_count + 1, false);
+  bool carry = false;
+  for (size_t c = 0; c < chunk_count; c++) {
+    chunk_escape_carries[c] = carry;
+    const char *chunk = padded_json.data() + c * Engine::CHUNK_SIZE;
+    for (size_t i = 1; i <= Engine::BLOCKS_PER_CHUNK; i++) {
+      auto is_escape_char = chunk[i * Engine::BLOCK_SIZE - 1] == '\\';
+      if (!is_escape_char) {
+        carry = false;
+        continue;
+      }
+      auto escape_char_count = 1;
+      while (chunk[(i * Engine::BLOCK_SIZE - 1) - escape_char_count] == '\\') {
+        is_escape_char = !is_escape_char;
+        escape_char_count++;
+      }
+      carry = is_escape_char;
+    }
+  }
+  chunk_escape_carries[chunk_count] = carry;
+
   for (size_t i = 0; i < 2; i++) {
     input_maps[i] = buffers[i].input.map<uint8_t *>();
     string_output_maps[i] = buffers[i].string_output.map<uint64_t *>();
@@ -141,20 +163,77 @@ void NPUMatrixKernel::read_kernel_output(
   auto string_index_buf = string_output_maps[output_buffer];
   auto structural_index_buf = structural_output_maps[output_buffer];
 
-  bool last_inside_string = previous_string_carry;
-  for (size_t i = 0; i < VECTORS_IN_CHUNK; i++) {
-    uint64_t raw_prefix_xor = string_index_buf[i];
-    uint64_t carry_mask = last_inside_string ? ~uint64_t(0) : uint64_t(0);
-    index.string_index[i] = raw_prefix_xor ^ carry_mask;
-    last_inside_string = static_cast<int64_t>(index.string_index[i]) >> 63;
-  }
-
   auto tail = index.block.structural_characters.data();
   index.block.structural_characters_count = 0;
 
-  for (size_t i = 0; i < VECTORS_IN_CHUNK; i++) {
-    uint64_t nonquoted_structural = structural_index_buf[i] & ~index.string_index[i];
+  bool last_inside_string = previous_string_carry;
+  size_t i = 0;
 
+  for (; i + 3 < VECTORS_IN_CHUNK; i += 4) {
+    uint64_t xs0 = string_index_buf[i];
+    uint64_t xs1 = string_index_buf[i + 1];
+    uint64_t xs2 = string_index_buf[i + 2];
+    uint64_t xs3 = string_index_buf[i + 3];
+
+    uint64_t s0 = xs0 ^ (-static_cast<uint64_t>(last_inside_string));
+    last_inside_string = static_cast<int64_t>(s0) >> 63;
+    uint64_t s1 = xs1 ^ (-static_cast<uint64_t>(last_inside_string));
+    last_inside_string = static_cast<int64_t>(s1) >> 63;
+    uint64_t s2 = xs2 ^ (-static_cast<uint64_t>(last_inside_string));
+    last_inside_string = static_cast<int64_t>(s2) >> 63;
+    uint64_t s3 = xs3 ^ (-static_cast<uint64_t>(last_inside_string));
+    last_inside_string = static_cast<int64_t>(s3) >> 63;
+
+    index.string_index[i] = s0;
+    index.string_index[i + 1] = s1;
+    index.string_index[i + 2] = s2;
+    index.string_index[i + 3] = s3;
+
+    uint64_t r0 = structural_index_buf[i] & ~s0;
+    uint64_t r1 = structural_index_buf[i + 1] & ~s1;
+    uint64_t r2 = structural_index_buf[i + 2] & ~s2;
+    uint64_t r3 = structural_index_buf[i + 3] & ~s3;
+
+    if ((r0 | r1 | r2 | r3) == 0) {
+      continue;
+    }
+
+    if (r0) {
+      const auto count = count_ones(r0);
+      write_structural_index(tail, r0, i * VECTOR_BYTES + chunk_idx, count);
+      index.block.structural_characters_count += count;
+      tail += count;
+    }
+
+    if (r1) {
+      const auto count = count_ones(r1);
+      write_structural_index(tail, r1, (i + 1) * VECTOR_BYTES + chunk_idx, count);
+      index.block.structural_characters_count += count;
+      tail += count;
+    }
+
+    if (r2) {
+      const auto count = count_ones(r2);
+      write_structural_index(tail, r2, (i + 2) * VECTOR_BYTES + chunk_idx, count);
+      index.block.structural_characters_count += count;
+      tail += count;
+    }
+
+    if (r3) {
+      const auto count = count_ones(r3);
+      write_structural_index(tail, r3, (i + 3) * VECTOR_BYTES + chunk_idx, count);
+      index.block.structural_characters_count += count;
+      tail += count;
+    }
+  }
+
+  for (; i < VECTORS_IN_CHUNK; i++) {
+    uint64_t raw_prefix_xor = string_index_buf[i];
+    uint64_t rectified_string = raw_prefix_xor ^ (-static_cast<uint64_t>(last_inside_string));
+    index.string_index[i] = rectified_string;
+    last_inside_string = static_cast<int64_t>(rectified_string) >> 63;
+
+    uint64_t nonquoted_structural = structural_index_buf[i] & ~rectified_string;
     if (nonquoted_structural == 0) {
       continue;
     }
@@ -169,7 +248,17 @@ void NPUMatrixKernel::read_kernel_output(
 }
 
 void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
+  size_t chunk_slot = chunk_idx / Engine::CHUNK_SIZE;
+
+  ::npu::construct_escape_carry_index(
+    padded_json.data() + chunk_idx,
+    *index,
+    chunk_escape_carries[chunk_slot]
+  );
+
   if (previous_run.has_value()) {
+    prepare_kernel_input(*index, chunk_idx, !current);
+
     previous_run->handle.wait();
 
     buffers[current].string_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
@@ -178,20 +267,13 @@ void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::func
     read_kernel_output(*previous_run->index, previous_run->chunk_idx);
 
     previous_string_carry = previous_run->index->ends_in_string();
-    previous_escape_carry = previous_run->index->ends_with_escape();
     previous_run->callback();
     previous_run.reset();
 
     current = !current;
+  } else {
+    prepare_kernel_input(*index, chunk_idx, current);
   }
-
-  ::npu::construct_escape_carry_index(
-    padded_json.data() + chunk_idx,
-    *index,
-    previous_escape_carry
-  );
-
-  prepare_kernel_input(*index, chunk_idx, current);
 
   buffers[current].input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
@@ -216,7 +298,6 @@ void NPUMatrixKernel::wait_for_previous() {
   read_kernel_output(*previous_run->index, previous_run->chunk_idx);
 
   previous_string_carry = previous_run->index->ends_in_string();
-  previous_escape_carry = previous_run->index->ends_with_escape();
   previous_run->callback();
   previous_run.reset();
 }

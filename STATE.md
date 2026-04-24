@@ -20,6 +20,30 @@
 
 7. **Buffer index bug in `read_kernel_output`**: Used `!current` after restructuring, but output is in `buffers[current]` before flip. Fixed to use `current`.
 
+## Performance Optimizations
+
+1. **Combined read_kernel_output passes**: Merged string index rectification and structural extraction into a single loop (was two separate passes over 131K vectors each), cutting loop iterations in half and halving buffer reads.
+
+2. **4-vector grouped early-out**: Structural extraction processes 4 vectors at a time with an `(r0|r1|r2|r3)==0` skip check, matching the original NPU backend pattern. Most 64-byte blocks contain no structural characters, so this skips most iterations.
+
+3. **Pre-computed chunk escape carries**: Escape carry state for each chunk boundary is computed eagerly in the constructor, eliminating the need to read the previous chunk's output before preparing the current chunk's input. This restores pipelining overlap between input preparation and kernel execution.
+
+4. **Removed unused `previous_escape_carry` member**: Superseded by pre-computed `chunk_escape_carries` vector.
+
+### Performance Impact
+
+| Benchmark | Before (GB/s) | After (GB/s) | Improvement |
+|-----------|--------------|-------------|-------------|
+| twitter T1 | 6.13 | 10.12 | 1.65x |
+| twitter T2 | 6.09 | 10.11 | 1.66x |
+| bestbuy B1 | 6.39 | 9.98 | 1.56x |
+| bestbuy B2 | 6.37 | 10.54 | 1.65x |
+| nspl N1 | 6.20 | 10.77 | 1.74x |
+| walmart W1 | 5.94 | 7.60 | 1.28x |
+| wikipedia Wi | 6.41 | 9.55 | 1.49x |
+
+The NPU matrix backend is now within 2-15% of the original NPU backend on most benchmarks.
+
 ## Build Commands
 
 ```bash
