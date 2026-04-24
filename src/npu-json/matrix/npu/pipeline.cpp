@@ -12,7 +12,7 @@ static void run_matrix_indexer(
 ) {
   NPUMatrixIndexer indexer(*kernel, json);
 
-  while (!indexer->is_at_end()) {
+  while (!indexer.is_at_end()) {
     auto index = index_queue->reserve_write_space();
     indexer.index_chunk(index, [index_queue, index]{
       index_queue->release_write_space(index);

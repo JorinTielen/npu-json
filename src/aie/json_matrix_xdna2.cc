@@ -50,8 +50,8 @@ void combined_index_aie(
   static constexpr unsigned int V = 64;
   static constexpr const uint64_t ODD_BITS = 0xAAAAAAAAAAAAAAAAULL;
 
-  uint32_t *__restrict carry_ptr = (uint32_t *)__restrict in_buffer;
-  uint8_t *__restrict data_ptr = (uint8_t *__restrict)(in_buffer + 4);
+  uint32_t *carry_ptr = (uint32_t *)in_buffer;
+  uint8_t *data_ptr = (uint8_t *)(in_buffer + 4);
 
   bool carry_in_string = (carry_ptr[0] & 1) != 0;
   bool carry_is_escaped = (carry_ptr[0] & 2) != 0;

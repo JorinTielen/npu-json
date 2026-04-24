@@ -12,7 +12,9 @@
 
 namespace matrix::npu {
 
-using ChunkIndexQueue = ::npu::Queue<::npu::ChunkIndex, ::npu::QUEUE_DEPTH>;
+constexpr std::size_t QUEUE_DEPTH = 4;
+
+using ChunkIndexQueue = ::npu::Queue<::npu::ChunkIndex, QUEUE_DEPTH>;
 
 class NPUMatrixPipeline : public ::npu::StructuralIterator {
 public:

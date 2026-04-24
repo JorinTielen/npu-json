@@ -16,7 +16,7 @@ namespace matrix::npu {
 
 struct RunHandle {
   xrt::run handle;
-  ChunkIndex *index;
+  ::npu::ChunkIndex *index;
   size_t chunk_idx;
   std::function<void()> callback;
 };
@@ -34,7 +34,8 @@ public:
   NPUMatrixKernel(const NPUMatrixKernel&) = delete;
   NPUMatrixKernel& operator=(const NPUMatrixKernel&) = delete;
 
-  void call(ChunkIndex *index, size_t chunk_idx, std::function<void()> callback);
+  void call(::npu::ChunkIndex *index, size_t chunk_idx, std::function<void()> callback);
+
   void wait_for_previous();
 
 private:
@@ -58,8 +59,8 @@ private:
 
   util::trace_id trace;
 
-  void prepare_kernel_input(const char *chunk, ChunkIndex &index, bool first_escape_carry, size_t buffer);
-  void read_kernel_output(ChunkIndex &index, bool first_string_carry, size_t chunk_idx);
+  void prepare_kernel_input(const char *chunk, ::npu::ChunkIndex &index, bool first_escape_carry, size_t buffer);
+  void read_kernel_output(::npu::ChunkIndex &index, bool first_string_carry, size_t chunk_idx);
 };
 
 }

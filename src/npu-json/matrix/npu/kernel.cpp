@@ -1,4 +1,6 @@
 #include <cstring>
+#include <immintrin.h>
+#include <stdexcept>
 
 #include <npu-json/matrix/npu/kernel.hpp>
 #include <npu-json/npu/chunk-index.hpp>
@@ -107,7 +109,7 @@ NPUMatrixKernel::NPUMatrixKernel(std::string_view json) {
 
 void NPUMatrixKernel::prepare_kernel_input(
   const char *chunk,
-  ChunkIndex &index,
+  ::npu::ChunkIndex &index,
   bool first_escape_carry,
   size_t buffer
 ) {
@@ -128,7 +130,7 @@ void NPUMatrixKernel::prepare_kernel_input(
 }
 
 void NPUMatrixKernel::read_kernel_output(
-  ChunkIndex &index,
+  ::npu::ChunkIndex &index,
   bool first_string_carry,
   size_t chunk_idx
 ) {
@@ -171,7 +173,7 @@ void NPUMatrixKernel::read_kernel_output(
   tracer.finish_trace(trace);
 }
 
-void NPUMatrixKernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
+void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
   auto &tracer = util::Tracer::get_instance();
 
   auto chunk = reinterpret_cast<const char *>(json_data_map + chunk_idx);
