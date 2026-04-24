@@ -1,101 +1,69 @@
 # STATE.md — npu-json Project State
 
-## Project Overview
+## Current Status
 
-This project is a JSONPath query engine accelerated by AMD XDNA NPU for structural indexing. The core pipeline:
+**The NPU matrix backend compiles and links successfully, but produces incorrect results at runtime.** The AIE xclbin generates warnings about core-level buffer allocation (16KB input blocks exceed individual bank size on AIE core tiles), and the structural index output does not contain expected characters (e.g., `{` at position 0 is missing).
 
-```
-JSON bytes → Structural Indexing (find structural chars) → JSONPath Automaton Engine → Results
-```
+The original NPU backend (`npu`) works correctly. The CPU matrix backend also works correctly. The issue is specific to the NPU-accelerated combined kernel.
 
-There are **4 backends**:
+## What was done in this session
 
-| Backend | Define | NPU/XRT | Description |
-|---------|--------|---------|-------------|
-| `npu` (original) | default | Yes | Two separate NPU kernels: `string_index` + `structural_character_index` |
-| `cpu` | `-Dcpu_backend=true` | No | CPU SIMD (AVX-512) implementation of the same two-kernel pipeline |
-| `matrix` | `-Dmatrix_backend=true` | No | CPU matrix ops — fuses both kernels into one pass |
-| `npu-matrix` | `-Dnpu_matrix_backend=true` | Yes | NPU-accelerated combined kernel — fuses both kernels into a single AIE kernel |
+1. **AIE kernel changes**: Changed `json_matrix_xdna2.cc` and `json_matrix_xdna1.cc` to output raw `structurals` instead of `structurals & ~string_index`, since per-block string_index starts with carry=0 and can't be masked on AIE.
 
-## Architecture
+2. **MLIR design rewrite** (`gen_mlir_matrix_design.py`):
+   - Changed input format to carry+data interleaved per block (`input_block_size = 4 + data_block_size`)
+   - Added 4-buffer runtime sequence (input_buffer, data_buffer, string_index, structural_index) matching original XRT interface
+   - Added separate `shim_fifos_data_in` for unused data DMA
+   - Used `input_split_ty = (input_block_size * num_rows,)` for shim-to-mem FIFOs
+   - `object_fifo_link` offsets use `i * input_block_size` per row
 
-### Structural Indexing Algorithm (all backends)
+3. **Host kernel rewrite** (`kernel.hpp`, `kernel.cpp`):
+   - Per-block carry+data input format
+   - Padded JSON buffer for `construct_escape_carry_index` safety
+   - `read_kernel_output` rectifies string_index across entire chunk and masks with `structural & ~rectified_string_index`
+   - 4-buffer XRT interface matching MLIR runtime (data, input, string_out, structural_out)
 
-1. **Character classification** — Detect `{`, `}`, `[`, `]`, `:`, `,`, `"`, `\` (GEMM-equiv or SIMD compare)
-2. **Escape detection** — Bit manipulation to find escaped backslashes (AND, NOT, XOR, shift)
-3. **String detection** — Prefix-XOR (inclusive scan with XOR) on non-escaped quotes
-4. **Structural mask** — OR the structural chars, AND NOT the string mask
-5. **Compress** — Popcount + bit-scan to convert bitmask → position array
+4. **Fixed VECTORS_IN_CHUNK** calculation (was `CHUNK_SIZE / 64 / 8`, corrected to `CHUNK_SIZE / 64`)
 
-### NPU Matrix Backend Architecture
+5. **Fixed padded_json buffer** for out-of-bounds access in `construct_escape_carry_index`
 
-The combined AIE kernel (`combined_index`) runs on 2 rows × 8 columns of AIE cores. Each core processes blocks of 16KB in a loop:
+## Remaining Issue: NPU Matrix Backend Produces Wrong Results
 
-- **Input per block**: 4 bytes carry flags (bit 0 = string carry, bit 1 = escape carry) + 16KB raw JSON data
-- **Output per block**: string bitmask (uint64_t per 64-byte vector) + structural bitmask (uint64_t per 64-byte vector)
-- **Carry propagation**: String carry is rectified on the host; escape carry is pre-computed per-block on the CPU
+### Symptoms
+- `./build/nj people.json '$.people[*].name'` returns "Found 0 results" (should return 3)
+- The AIE xclbin produces non-zero string_index and structural_index output, but the structural positions don't include expected characters (e.g., `{` at position 0)
+- The AIE xclbin build produces warnings: "Failed to allocate buffer" for `input_block_size = 16388` on core tiles, falling back to basic sequential allocation
 
-### Host-Side Processing (`matrix/npu/kernel.cpp`)
+### Root Cause (Suspected)
+The AIE core tiles have limited data memory (64KB in 8 banks of 8KB each). The combined kernel's input buffer (`input_block_size = carry_size + block_size = 4 + 16384 = 16388 bytes`) plus two output buffers (`2 × 2048 = 4096 bytes`) plus stack may cause the basic sequential allocator to place buffers at incorrect offsets, leading to data corruption.
 
-1. **`prepare_kernel_input`**: Compute per-block escape carry via `construct_escape_carry_index`, interleave carry+data per block, arrange in column-row-block layout for MLIR DMA
-2. **`call`**: Launch kernel on NPU with ping-pong buffering; pre-compute escape carry for next chunk while waiting
-3. **`read_kernel_output`**: Rectify string_index across all vectors (XOR with carry), compute `nonquoted_structural = structural & ~rectified_string_index`, compress to position array
-
-### Key Design Decisions
-
-1. **AIE outputs raw structurals, not `structurals & ~string_index`**: Per-block string_index starts with carry=0, so masking on AIE would produce wrong results at block boundaries. The host masks after rectification.
-
-2. **String carry rectified on host, not AIE**: Each AIE block starts with `string_carry = 0`. The host XOR-rectifies across all vectors in the chunk (same as original NPU backend).
-
-3. **Escape carry pre-computed on CPU**: `construct_escape_carry_index` checks block boundaries for odd backslash sequences. This is fast (O(blocks_per_chunk)) and ensures correct escape detection across blocks.
-
-4. **4-buffer runtime sequence**: Input (carry+data), data (unused by cores, for DMA compatibility), string_index output, structural_index output. The data_buffer DMA is unused by the AIE cores but required for the 4-buffer XRT interface.
-
-5. **MLIR data layout**: Input buffer uses per-block carry+data interleaved format. The `input_split_ty` is `input_block_size * num_rows = (4 + 16384) * 2 = 32776` bytes per shim-to-mem transfer.
-
-## File Map
-
-### AIE Kernels
-- `src/aie/json_matrix_xdna2.cc` — Combined AIE kernel for XDNA2 (NPU2)
-- `src/aie/json_matrix_xdna1.cc` — Combined AIE kernel for XDNA1 (NPU1)
-- `src/aie/gen_mlir_matrix_design.py` — MLIR design for combined kernel (2 core rows, 4 DMA channels)
-
-### NPU Matrix Backend (Host)
-- `src/npu-json/matrix/npu/kernel.hpp` / `kernel.cpp` — NPUMatrixKernel with XRT ping-pong buffering
-- `src/npu-json/matrix/npu/pipeline.hpp` / `pipeline.cpp` — NPUMatrixPipeline (StructuralIterator impl)
-
-### Shared/Modified
-- `src/npu-json/npu/iterator.hpp` — Abstract StructuralIterator interface
-- `src/npu-json/engine.hpp` / `engine.cpp` — Uses `StructuralIterator*`, dispatches via `#ifdef`
-- `src/npu-json/options.hpp` — Path constants for xclbin/insts files
-- `meson.build` / `meson.options` — Build options for all backends
-- `Justfile` — Build targets including `build-npu-matrix-hx370`
-
-### Tests
-- `test/unit/cpu_backend_test.cpp` — CPU backend unit tests
-- `test/unit/matrix_backend_test.cpp` — Matrix backend unit tests (11 test cases, all pass)
-- `test/unit/npu_matrix_backend_test.cpp` — NPU matrix tests (guarded by `NPU_JSON_NPU_MATRIX_BACKEND`, requires hardware)
+### Potential Fixes
+1. **Reduce block size**: Use `BLOCK_SIZE = 4096` or `2048` instead of `16384` to reduce AIE memory pressure. This requires regenerating the MLIR design and xclbin with different parameters.
+2. **Split input into carry + data**: Keep carry separate (4 bytes) and send data block via a different DMA channel, reducing per-core memory to `data_block_size + 2 * index_block_size ≈ 20KB` which fits better.
+3. **Use the original NPU backend's two-kernel approach for now** and optimize the combined kernel design later.
+4. **Debug the AIE data path**: Add trace output to verify the AIE cores are receiving correct input data and producing correct output.
 
 ## Build Commands
 
 ```bash
-just build-cpu-only      # CPU SIMD backend
-just build-cpu-matrix     # CPU matrix ops backend
-just build-npu-matrix-hx370  # NPU matrix backend (hx370 defaults)
+just build-cpu-only          # CPU SIMD backend (working)
+just build-cpu-matrix         # CPU matrix ops backend (working)
+just build-npu-matrix-hx370   # NPU matrix backend (builds, wrong runtime results)
 ```
 
 ## Test Results
 
-- **Small e2e tests**: PASS (matches `test/e2e/correct-small.log`)
-- **Big e2e tests**: PASS (matches `test/e2e/correct-answer.log`)
+| Backend | Build | E2E Tests |
+|---------|-------|-----------|
+| `npu` (original) | ✅ | ✅ Found 3 results |
+| `cpu` (SIMD) | ✅ | ✅ |
+| `matrix` (CPU ops) | ✅ | ✅ |
+| `npu-matrix` | ✅ | ❌ Found 0 results |
 
-## Git History (Recent)
+## Key Files
 
-1. Fix matrix insts path to match aiecc output location
-2. Add STATE.md documenting project state and pending work
-3. **Current**: Fix NPU matrix backend to pass e2e tests
-   - Changed AIE kernels to output raw `structurals` instead of `structurals & ~string_index`
-   - Rewrote MLIR design for carry+data input format with 4-buffer runtime
-   - Rewrote host kernel code: per-block carry+data input, string_index rectification, structural masking on host
-   - Fixed VECTORS_IN_CHUNK calculation bug
-   - Added padded JSON buffer for escape_carry_index safety
+- `src/aie/json_matrix_xdna2.cc` / `json_matrix_xdna1.cc` — Combined AIE kernel
+- `src/aie/gen_mlir_matrix_design.py` — MLIR design for combined kernel
+- `src/npu-json/matrix/npu/kernel.hpp` / `kernel.cpp` — Host-side NPU matrix kernel
+- `src/npu-json/matrix/npu/pipeline.hpp` / `pipeline.cpp` — NPU matrix pipeline
+- `src/npu-json/options.hpp` — XCLBIN and insts paths

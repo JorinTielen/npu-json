@@ -121,10 +121,11 @@ void NPUMatrixKernel::prepare_kernel_input(
   auto input_buf = input_maps[buffer];
 
   for (size_t col = 0; col < NPU_NUM_COLS; col++) {
-    for (size_t row = 0; row < NPU_NUM_ROWS; row++) {
-      for (size_t b = 0; b < NPU_BLOCKS_PER_ROW; b++) {
-        size_t block_idx = col * NPU_BLOCKS_PER_COLUMN + row * NPU_BLOCKS_PER_ROW + b;
-        size_t offset = (col * NPU_BLOCKS_PER_COLUMN + row * NPU_BLOCKS_PER_ROW + b) * NPU_INPUT_BLOCK_SIZE;
+    size_t column_offset = col * NPU_BLOCKS_PER_COLUMN * NPU_INPUT_BLOCK_SIZE;
+    for (size_t b = 0; b < NPU_BLOCKS_PER_ROW; b++) {
+      for (size_t row = 0; row < NPU_NUM_ROWS; row++) {
+        size_t block_idx = col * NPU_BLOCKS_PER_COLUMN + b * NPU_NUM_ROWS + row;
+        size_t offset = column_offset + (b * NPU_NUM_ROWS + row) * NPU_INPUT_BLOCK_SIZE;
 
         uint32_t carry_flags = 0;
         if (index.escape_carry_index[block_idx]) carry_flags |= 2;
@@ -132,9 +133,8 @@ void NPUMatrixKernel::prepare_kernel_input(
         memcpy(input_buf + offset, &carry_flags, sizeof(uint32_t));
 
         size_t data_offset = block_idx * Engine::BLOCK_SIZE;
-        size_t copy_size = Engine::BLOCK_SIZE;
         const char *src = padded_json.data() + data_offset;
-        memcpy(input_buf + offset + sizeof(uint32_t), src, copy_size);
+        memcpy(input_buf + offset + sizeof(uint32_t), src, Engine::BLOCK_SIZE);
       }
     }
   }
