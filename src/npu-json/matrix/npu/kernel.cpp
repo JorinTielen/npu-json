@@ -248,6 +248,7 @@ void NPUMatrixKernel::read_kernel_output(
 }
 
 void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
+  auto &tracer = util::Tracer::get_instance();
   size_t chunk_slot = chunk_idx / Engine::CHUNK_SIZE;
 
   ::npu::construct_escape_carry_index(
@@ -261,8 +262,14 @@ void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::func
 
     previous_run->handle.wait();
 
+    auto output_sync_trace = tracer.start_trace("npu_matrix_output_sync");
+
     buffers[current].string_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
     buffers[current].structural_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+
+    tracer.finish_trace(output_sync_trace);
+
+    tracer.finish_trace(previous_run->npu_trace);
 
     read_kernel_output(*previous_run->index, previous_run->chunk_idx);
 
@@ -275,14 +282,18 @@ void NPUMatrixKernel::call(::npu::ChunkIndex *index, size_t chunk_idx, std::func
     prepare_kernel_input(*index, chunk_idx, current);
   }
 
+  auto input_sync_trace = tracer.start_trace("npu_matrix_input_sync");
   buffers[current].input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  tracer.finish_trace(input_sync_trace);
+
+  auto npu_trace = tracer.start_trace("npu_matrix_kernel_roundtrip");
 
   auto run = kernel(3, instr, instr_size,
     buffers[current].input,
     buffers[current].string_output,
     buffers[current].structural_output);
 
-  previous_run = std::optional<RunHandle>({run, index, chunk_idx, callback});
+  previous_run = std::optional<RunHandle>({run, index, chunk_idx, callback, npu_trace});
 }
 
 void NPUMatrixKernel::wait_for_previous() {
@@ -290,10 +301,16 @@ void NPUMatrixKernel::wait_for_previous() {
     throw std::logic_error("Called wait for previous without previous run");
   }
 
+  auto &tracer = util::Tracer::get_instance();
+
   previous_run->handle.wait();
 
+  auto output_sync_trace = tracer.start_trace("npu_matrix_output_sync");
   buffers[current].string_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
   buffers[current].structural_output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+  tracer.finish_trace(output_sync_trace);
+
+  tracer.finish_trace(previous_run->npu_trace);
 
   read_kernel_output(*previous_run->index, previous_run->chunk_idx);
 

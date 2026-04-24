@@ -25,6 +25,7 @@ struct RunHandle {
   ::npu::ChunkIndex *index;
   size_t chunk_idx;
   std::function<void()> callback;
+  util::trace_id npu_trace;
 };
 
 struct KernelBuffer {
