@@ -44,6 +44,44 @@
 
 The NPU matrix backend is now within 2-15% of the original NPU backend on most benchmarks.
 
+## Zero-Copy Optimization
+
+Separated the combined kernel input into two independent DMA channels:
+- **Data channel**: raw JSON data imported as an XRT buffer once (zero-copy from host memory)
+- **Carry channel**: tiny 2KB carry-flags buffer per chunk
+
+This required changes across three layers:
+1. **AIE kernel** (`json_matrix_xdna2.cc`, `json_matrix_xdna1.cc`): now accepts `data_in` + `carry_in` instead of interleaved `in_buffer`
+2. **MLIR design**: added separate data and carry `object_fifo` channels per column with row-level distribution via `object_fifo_link`
+3. **Host kernel**: pre-reorders data once at construction time, eliminating per-chunk 8MB memcpy
+
+### Benchmark Results
+
+| Benchmark | Before (GB/s) | After Zero-Copy (GB/s) | Improvement | vs Baseline |
+|-----------|--------------|----------------------|-------------|-------------|
+| twitter T1 | 10.12 | 11.16 | 1.10x | 12.39 |
+| twitter T2 | 10.11 | 10.51 | 1.04x | 12.53 |
+| bestbuy B1 | 9.98 | 10.05 | 1.01x | 10.45 |
+| bestbuy B2 | 10.54 | 11.16 | 1.06x | 11.79 |
+| googlemaps G1 | 4.70 | 5.04 | 1.07x | 5.15 |
+| googlemaps G2 | 6.87 | 8.08 | 1.18x | 7.08 |
+| nspl N1 | 10.77 | 11.78 | 1.09x | 12.44 |
+| nspl N2 | 5.33 | 5.56 | 1.04x | 5.60 |
+| walmart W1 | 7.60 | 8.10 | 1.07x | 7.53 |
+| wikipedia Wi | 9.55 | 9.67 | 1.01x | 9.74 |
+
+### Post Zero-Copy Per-Chunk Breakdown (N1 trace)
+
+| Task | Before (µs) | After (µs) |
+|------|------------|-----------|
+| prepare_kernel_input (8MB memcpy) | 422.4 | **0.4** |
+| input/carry sync | 109.2 | **0.7** |
+| npu_matrix_kernel_roundtrip | 485.9 | 498.6 |
+| automaton_matrix_npu | 428.7 | 337.7 |
+| read_kernel_output_matrix | 179.2 | 208.9 |
+
+The indexing bottleneck is now the NPU hardware roundtrip (~499µs, 48%) and automaton query evaluation (~338µs, 32%).
+
 ## Build Commands
 
 ```bash
