@@ -15,14 +15,12 @@ static void run_indexer(
   while (!indexer.is_at_end()) {
     auto index = index_queue->reserve_write_space();
     indexer.index_chunk(index, [index_queue, index]{
-      // Only release the write space once the callback comes back.
-      // Because of ping-pong buffering, the index is not finished
-      // once the `index_chunk` function returns.
       index_queue->release_write_space(index);
     });
   }
 
   indexer.wait_for_last_chunk();
+  index_queue->set_producer_done();
 }
 
 PipelinedIterator::PipelinedIterator(std::string_view json)
@@ -60,15 +58,13 @@ bool PipelinedIterator::switch_to_next_chunk() {
 
   if (index != nullptr) {
     index_queue->release_token(index);
-    // Finish the trace if there is one.
     if (automaton_trace) tracer.finish_trace(automaton_trace);
   }
 
   index = nullptr;
 
-  if (chunk_idx >= json.length()) return false;
-
   index = index_queue->claim_read_token();
+  if (index == nullptr) return false;
 
   automaton_trace = tracer.start_trace("automaton");
 
@@ -145,10 +141,14 @@ void PipelinedIndexer::index_chunk(ChunkIndex *index, std::function<void()> call
     throw std::logic_error("Attempted to index past end of JSON");
   }
 
-  // Perform string index and structural index on NPU
   kernel.call(index, chunk_idx, callback);
 
-  chunk_idx += Engine::CHUNK_SIZE;
+  // Advance by actual chunk size: prefix may differ from CHUNK_SIZE
+  if (chunk_idx == 0 && kernel.get_prefix_size() > 0) {
+    chunk_idx += kernel.get_prefix_size();
+  } else {
+    chunk_idx += Engine::CHUNK_SIZE;
+  }
 }
 
 void PipelinedIndexer::wait_for_last_chunk() {

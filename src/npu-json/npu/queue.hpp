@@ -75,10 +75,14 @@ public:
 
     auto pool = record_pool.get();
 
-    // Wait until a token is produced if the queue is empty.
+    // Wait until a token is produced or the producer is done.
     queue_empty_condition.wait(guard, [this]{
-      return read_idx != write_idx;
+      return read_idx != write_idx || producer_done;
     });
+
+    if (read_idx == write_idx && producer_done) {
+      return nullptr;
+    }
 
     return &pool->data()[read_idx];
   }
@@ -104,6 +108,13 @@ public:
     read_idx = 0;
     write_idx = 0;
     reserved_write_idx = 0;
+    producer_done = false;
+  }
+
+  void set_producer_done() {
+    std::lock_guard<std::mutex> guard(queue_mutex);
+    producer_done = true;
+    queue_empty_condition.notify_all();
   }
 private:
   std::mutex queue_mutex;
@@ -115,6 +126,7 @@ private:
   std::size_t read_idx;
   std::size_t write_idx;
   std::size_t reserved_write_idx;
+  bool producer_done = false;
 };
 
 } // namespace npu
