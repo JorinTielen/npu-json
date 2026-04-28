@@ -461,12 +461,13 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
     const __m512i colon_mask = _mm512_set1_epi8(':');
     const __m512i comma_mask = _mm512_set1_epi8(',');
 
-    // Zero-initialize arrays since the prefix won't fill them entirely
+    // Zero-initialize only escape_carry_index (small, 513 bytes)
+    // string_index doesn't need initialization since prefix code doesn't read it
     index->escape_carry_index.fill(false);
     index->escape_carry_index[0] = previous_escape_carry;
-    index->string_index.fill(0);
 
-    // Compute escape carry at end of prefix
+    // Compute escape carry at end of prefix: check if last byte is an
+    // unescaped backslash (odd-length backslash sequence)
     bool prefix_end_carry = false;
     if (prefix_size > 0 && chunk[prefix_size - 1] == '\\') {
       bool is_escaped = true;
@@ -509,7 +510,6 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
       uint64_t string_idx = prefix_xor(non_escaped_quotes);
       string_idx ^= prev_in_string;
       prev_in_string = static_cast<int64_t>(string_idx) >> 63;
-      index->string_index[i] = string_idx;
 
       uint64_t braces = _mm512_cmpeq_epu8_mask(data, brace_open_mask) |
                         _mm512_cmpeq_epu8_mask(data, brace_close_mask);
@@ -551,7 +551,7 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
         prev_is_escaped = 0;
         if (c == '"') {
           in_string = true;
-        } else           if (is_structural_char(c)) {
+        } else if (is_structural_char(c)) {
           index->block.structural_characters[tail_pos - index->block.structural_characters.data()] =
             static_cast<uint32_t>(chunk_idx + pos);
           index->block.structural_characters_count++;
@@ -561,15 +561,10 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
       prev_in_string = in_string ? ~uint64_t(0) : uint64_t(0);
     }
 
-    // Store carry state for cross-chunk propagation
-    for (size_t i = 0; i <= CHUNK_CARRY_INDEX_SIZE; i++) {
-      index->escape_carry_index[i] = prefix_end_carry;
-    }
+    // Set escape carry at end of prefix for cross-chunk propagation
+    // ends_with_escape() reads escape_carry_index[CHUNK_CARRY_INDEX_SIZE - 1]
     index->escape_carry_index[0] = previous_escape_carry;
-    index->escape_carry_index[1] = prefix_end_carry;
-    index->escape_carry_index[CHUNK_CARRY_INDEX_SIZE] = prefix_end_carry;
-    // Set the "ends in string" indicator in the position that ends_in_string() reads
-    index->string_index[CHUNK_BIT_INDEX_SIZE / 8 - 1] = prev_in_string;
+    index->escape_carry_index[CHUNK_CARRY_INDEX_SIZE - 1] = prefix_end_carry;
 
     tracer.finish_trace(trace_prefix);
 
