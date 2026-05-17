@@ -47,7 +47,9 @@ private:
   size_t prefix_size = 0;
 
 #ifdef NPU_JSON_CPU_BACKEND
-  std::vector<uint8_t> json_data;
+  const char *json_data = nullptr;
+  size_t json_size = 0;
+  std::vector<char> tail_buffer;
   bool previous_string_carry = false;
   bool previous_escape_carry = false;
 

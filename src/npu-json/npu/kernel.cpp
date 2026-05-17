@@ -97,12 +97,14 @@ static inline bool is_structural_char(char c) {
 #ifdef NPU_JSON_CPU_BACKEND
 
 Kernel::Kernel(std::string_view json) {
-  auto input_buffer_size_structural =
-    (json.length() + Engine::CHUNK_SIZE - 1) / Engine::CHUNK_SIZE * Engine::CHUNK_SIZE;
-  json_data.resize(input_buffer_size_structural, static_cast<uint8_t>(' '));
+  json_data = json.data();
+  json_size = json.length();
 
-  if (!json.empty()) {
-    memcpy(json_data.data(), json.begin(), json.length());
+  size_t tail_size = json_size % Engine::CHUNK_SIZE;
+  if (tail_size > 0) {
+    tail_buffer.resize(Engine::CHUNK_SIZE, ' ');
+    auto tail_src = json_data + json_size - tail_size;
+    memcpy(tail_buffer.data(), tail_src, tail_size);
   }
 }
 
@@ -183,7 +185,13 @@ void Kernel::construct_combined_index(
 }
 
 void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> callback) {
-  auto chunk = reinterpret_cast<const char *>(json_data.data() + chunk_idx);
+  const char *chunk;
+  size_t remaining = json_size - chunk_idx;
+  if (remaining >= Engine::CHUNK_SIZE) {
+    chunk = json_data + chunk_idx;
+  } else {
+    chunk = tail_buffer.data();
+  }
 
   construct_combined_index(
     chunk,

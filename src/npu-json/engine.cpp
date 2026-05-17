@@ -1,8 +1,10 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <iomanip>
 #include <stack>
 #include <variant>
+#include <chrono>
 #include <memory>
 
 #include <npu-json/jsonpath/byte-code.hpp>
@@ -13,22 +15,47 @@
 
 #include <npu-json/engine.hpp>
 
+bool g_engine_cold_detail = false;
+
 Engine::Engine(jsonpath::Query &query, std::string_view json) {
+  auto t0 = std::chrono::high_resolution_clock::now();
+
   byte_code = std::make_unique<jsonpath::ByteCode>();
   byte_code->compile_from_query(query);
+
+  auto t1 = std::chrono::high_resolution_clock::now();
+
   stack = std::stack<StackFrame>();
   instructions = &byte_code->instructions[0];
   iterator = std::make_unique<npu::PipelinedIterator>(json);
+
+  auto t2 = std::chrono::high_resolution_clock::now();
+
   previous_structural = nullptr;
   current_structure_type = StructureType::Object;
   this->json = json;
+
+  if (g_engine_cold_detail) {
+    using Ms = std::chrono::duration<double, std::milli>;
+    double d_compile = Ms(t1 - t0).count();
+    double d_iterator = Ms(t2 - t1).count();
+    double d_total    = Ms(t2 - t0).count();
+    std::cout << "      3a. bytecode compile             : " << std::setw(8) << d_compile  << " ms" << std::endl;
+    std::cout << "      3b. iterator/Kernel/Queue create  : " << std::setw(8) << d_iterator << " ms" << std::endl;
+    std::cout << "      3c. Engine total                  : " << std::setw(8) << d_total    << " ms" << std::endl;
+  }
 }
 
 Engine::~Engine() {}
 
 std::shared_ptr<ResultSet> Engine::run_query() {
+  auto t0 = std::chrono::high_resolution_clock::now();
+
   auto result_set = std::make_shared<ResultSet>();
   iterator->setup(json);
+
+  auto t1 = std::chrono::high_resolution_clock::now();
+
   executing_query = true;
 
   static const void *dispatch_table[] = {
@@ -95,9 +122,25 @@ DISPATCH();
   }
 
 FINISH:
+  auto t2 = std::chrono::high_resolution_clock::now();
+
   // For finishing the last automaton trace.
 iterator->get_next_structural_character();
   iterator->reset();
+
+  auto t3 = std::chrono::high_resolution_clock::now();
+
+  if (g_engine_cold_detail) {
+    using Ms = std::chrono::duration<double, std::milli>;
+    double d_setup    = Ms(t1 - t0).count();
+    double d_execute  = Ms(t2 - t1).count();
+    double d_teardown = Ms(t3 - t2).count();
+    double d_total    = Ms(t3 - t0).count();
+    std::cout << "      4a. setup (spawn indexer thread)  : " << std::setw(8) << d_setup    << " ms" << std::endl;
+    std::cout << "      4b. query execution + indexing    : " << std::setw(8) << d_execute  << " ms" << std::endl;
+    std::cout << "      4c. teardown (reset)              : " << std::setw(8) << d_teardown << " ms" << std::endl;
+    std::cout << "      4d. run_query total               : " << std::setw(8) << d_total    << " ms" << std::endl;
+  }
 
   return result_set;
 }

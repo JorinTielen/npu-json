@@ -23,7 +23,7 @@ public:
   static_assert(N >= 2);
 
   explicit Queue() : read_idx(0), write_idx(0), reserved_write_idx(0) {
-    record_pool = std::make_unique<RecordPool>();
+    record_pool.reset(new RecordPool);
   }
 
   // Reserve a space to write into. Waits for a free space if the queue is full.
