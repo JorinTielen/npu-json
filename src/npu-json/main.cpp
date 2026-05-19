@@ -80,6 +80,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  if (trace) {
+    util::Tracer::get_instance().set_enabled(true);
+  }
+
   if (cold) {
     std::cout << "=== Cold Benchmark ===" << std::endl;
     std::cout << "File: " << argv[1] << std::endl;

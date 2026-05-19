@@ -50,15 +50,16 @@ void PipelinedIterator::reset() {
   chunk_idx = 0;
   current_pos_in_block = 0;
   current_block = 0;
+  automaton_trace = util::INVALID_TRACE_ID;
 }
 
 bool PipelinedIterator::switch_to_next_chunk() {
   auto& tracer = util::Tracer::get_instance();
-  static util::trace_id automaton_trace;
 
   if (index != nullptr) {
     index_queue->release_token(index);
-    if (automaton_trace) tracer.finish_trace(automaton_trace);
+    if (automaton_trace != util::INVALID_TRACE_ID) tracer.finish_trace(automaton_trace);
+    automaton_trace = util::INVALID_TRACE_ID;
   }
 
   index = nullptr;

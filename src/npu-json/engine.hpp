@@ -1,8 +1,9 @@
 #pragma once
 
 #include <memory>
-#include <stack>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <npu-json/jsonpath/byte-code.hpp>
 #include <npu-json/jsonpath/query.hpp>
@@ -74,12 +75,14 @@ public:
   std::shared_ptr<ResultSet> run_query();
 private:
   std::unique_ptr<jsonpath::ByteCode> byte_code;
-  jsonpath::Instruction *instructions;
+  const jsonpath::Instruction *instructions;
+  const int *query_instruction_depths;
+  size_t instruction_count = 0;
   std::unique_ptr<npu::PipelinedIterator> iterator;
 
   // Engine execution state
   bool executing_query = false;
-  std::stack<StackFrame> stack;
+  std::vector<StackFrame> stack;
 
   size_t current_instruction_pointer = 0;
   size_t current_depth = 0;
@@ -89,6 +92,7 @@ private:
   bool current_matched_key_at_depth = false;
   size_t current_array_position = 0;
   std::string_view json;
+  const char *json_data = nullptr;
 
   // State implementations
   void handle_open_structure(StructureType structure_type);
@@ -106,7 +110,7 @@ private:
   // Helper functions
   void enter(StructureType structure_type);
   void exit(StructureType structure_type);
-  void restore_state_from_stack(StackFrame &frame);
+  void restore_state_from_stack(const StackFrame &frame);
   void pass_structural(uint32_t* structural_character);
   uint32_t *passed_previous_structural();
   size_t calculate_query_depth();

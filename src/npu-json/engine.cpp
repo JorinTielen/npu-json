@@ -1,16 +1,10 @@
 #include <cassert>
 #include <cstring>
-#include <iostream>
-#include <iomanip>
-#include <stack>
-#include <variant>
-#include <chrono>
 #include <memory>
 
 #include <npu-json/jsonpath/byte-code.hpp>
 #include <npu-json/jsonpath/query.hpp>
 #include <npu-json/npu/pipeline.hpp>
-#include <npu-json/util/debug.hpp>
 #include <npu-json/error.hpp>
 
 #include <npu-json/engine.hpp>
@@ -18,43 +12,41 @@
 bool g_engine_cold_detail = false;
 
 Engine::Engine(jsonpath::Query &query, std::string_view json) {
-  auto t0 = std::chrono::high_resolution_clock::now();
 
   byte_code = std::make_unique<jsonpath::ByteCode>();
   byte_code->compile_from_query(query);
 
-  auto t1 = std::chrono::high_resolution_clock::now();
 
-  stack = std::stack<StackFrame>();
   instructions = &byte_code->instructions[0];
+  query_instruction_depths = byte_code->query_instruction_depth.data();
+  instruction_count = byte_code->instructions.size();
+  stack.reserve(instruction_count);
   iterator = std::make_unique<npu::PipelinedIterator>(json);
 
-  auto t2 = std::chrono::high_resolution_clock::now();
 
   previous_structural = nullptr;
   current_structure_type = StructureType::Object;
   this->json = json;
+  json_data = json.data();
 
-  if (g_engine_cold_detail) {
-    using Ms = std::chrono::duration<double, std::milli>;
-    double d_compile = Ms(t1 - t0).count();
-    double d_iterator = Ms(t2 - t1).count();
-    double d_total = Ms(t2 - t0).count();
-    std::cout << "      3a. bytecode compile             : " << std::setw(8) << d_compile << " ms" << std::endl;
-    std::cout << "      3b. iterator/Kernel/Queue create  : " << std::setw(8) << d_iterator << " ms" << std::endl;
-    std::cout << "      3c. Engine total                  : " << std::setw(8) << d_total << " ms" << std::endl;
-  }
 }
 
 Engine::~Engine() {}
 
 std::shared_ptr<ResultSet> Engine::run_query() {
-  auto t0 = std::chrono::high_resolution_clock::now();
 
   auto result_set = std::make_shared<ResultSet>();
-  iterator->setup(json);
+  ResultSet &results = *result_set;
 
-  auto t1 = std::chrono::high_resolution_clock::now();
+  stack.clear();
+  current_instruction_pointer = 0;
+  current_depth = 0;
+  current_structure_type = StructureType::Object;
+  previous_structural = nullptr;
+  current_matched_key_at_depth = false;
+  current_array_position = 0;
+
+  iterator->setup(json);
 
   executing_query = true;
 
@@ -87,24 +79,24 @@ DISPATCH();
 }
 
 HANDLE_FIND_INDEX: {
-auto &current_instruction = instructions[current_instruction_pointer];
-auto start = current_instruction.search_index.value();
+const auto &current_instruction = instructions[current_instruction_pointer];
+auto start = *current_instruction.search_index;
 handle_find_range(start, start + 1);
 if (!executing_query) goto FINISH;
 DISPATCH();
 }
 
 HANDLE_FIND_RANGE: {
-auto &current_instruction = instructions[current_instruction_pointer];
-auto [start, end] = current_instruction.search_range.value();
+const auto &current_instruction = instructions[current_instruction_pointer];
+auto [start, end] = *current_instruction.search_range;
 handle_find_range(start, end);
 if (!executing_query) goto FINISH;
 DISPATCH();
 }
 
 HANDLE_FIND_KEY: {
-auto &current_instruction = instructions[current_instruction_pointer];
-handle_find_key(current_instruction.search_key.value());
+const auto &current_instruction = instructions[current_instruction_pointer];
+handle_find_key(*current_instruction.search_key);
 if (!executing_query) goto FINISH;
 DISPATCH();
 }
@@ -116,38 +108,23 @@ DISPATCH();
 }
 
 HANDLE_RECORD_RESULT: {
-handle_record_result(*result_set.get());
+handle_record_result(results);
 if (!executing_query) goto FINISH;
 DISPATCH();
   }
 
 FINISH:
-auto t2 = std::chrono::high_resolution_clock::now();
 
   // For finishing the last automaton trace.
 iterator->get_next_structural_character();
   iterator->reset();
-
-  auto t3 = std::chrono::high_resolution_clock::now();
-
-  if (g_engine_cold_detail) {
-    using Ms = std::chrono::duration<double, std::milli>;
-    double d_setup = Ms(t1 - t0).count();
-    double d_execute = Ms(t2 - t1).count();
-    double d_teardown = Ms(t3 - t2).count();
-    double d_total = Ms(t3 - t0).count();
-    std::cout << "      4a. setup (spawn indexer thread)  : " << std::setw(8) << d_setup << " ms" << std::endl;
-    std::cout << "      4b. query execution + indexing    : " << std::setw(8) << d_execute << " ms" << std::endl;
-    std::cout << "      4c. teardown (reset)              : " << std::setw(8) << d_teardown << " ms" << std::endl;
-    std::cout << "      4d. run_query total               : " << std::setw(8) << d_total << " ms" << std::endl;
-  }
 
   return result_set;
 }
 
 inline __attribute((always_inline))
 void Engine::handle_open_structure(StructureType structure_type) {
-  const char *const json_c = json.begin();
+  const char *const json_c = json_data;
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character
     ? initial_structural_character
@@ -254,6 +231,7 @@ void Engine::handle_open_structure(StructureType structure_type) {
   }
 }
 
+static inline __attribute((always_inline))
 bool check_key_match(const char *const json_c, size_t colon_position, const std::string_view search_key) {
   // {"a" : 1 }
   // 0123456789
@@ -264,9 +242,10 @@ bool check_key_match(const char *const json_c, size_t colon_position, const std:
     current_position--;
   }
 
-  if (current_position < search_key.length() + 2) return false;
+  const size_t key_length = search_key.length();
+  if (current_position < key_length + 2) return false;
 
-  size_t start_position = current_position - search_key.length();
+  size_t start_position = current_position - key_length;
 
   if (!(json_c[start_position - 1] == '"' && json_c[start_position - 2] != '\\')) return false;
 
@@ -275,25 +254,20 @@ bool check_key_match(const char *const json_c, size_t colon_position, const std:
   auto match = memcmp(
     json_c + start_position,
     search_key.data(),
-    search_key.length()
+    key_length
   );
 
   return match == 0;
 }
 
+static inline __attribute((always_inline))
 bool is_closing_structural(char structural) {
-  switch (structural) {
-    case '}':
-    case ']':
-      return true;
-    default:
-      return false;
-  }
+  return structural == '}' || structural == ']';
 }
 
 inline __attribute((always_inline))
 void Engine::handle_find_key(const std::string_view search_key) {
-  const char *const json_c = json.begin();
+  const char *const json_c = json_data;
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character
     ? initial_structural_character
@@ -370,7 +344,7 @@ void Engine::handle_find_key(const std::string_view search_key) {
 
 inline __attribute((always_inline))
 void Engine::handle_find_range(const size_t start, const size_t end) {
-  const char *const json_c = json.begin();
+  const char *const json_c = json_data;
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character
     ? initial_structural_character
@@ -454,7 +428,7 @@ void Engine::handle_find_range(const size_t start, const size_t end) {
 
 inline __attribute((always_inline))
 void Engine::handle_wildcard() {
-  const char *const json_c = json.begin();
+  const char *const json_c = json_data;
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character
     ? initial_structural_character
@@ -553,7 +527,7 @@ void Engine::handle_wildcard() {
 
 inline __attribute((always_inline))
 void Engine::handle_record_result(ResultSet &result_set) {
-  const char *const json_c = json.begin();
+  const char *const json_c = json_data;
   auto initial_structural_character = passed_previous_structural();
   auto structural_character = initial_structural_character
     ? initial_structural_character
@@ -567,7 +541,6 @@ void Engine::handle_record_result(ResultSet &result_set) {
   auto query_depth = calculate_query_depth();
 
   auto structurals_end = iterator->get_chunk_structural_index_end_ptr();
-  auto previous_opcode = instructions[current_instruction_pointer - 1].opcode;
 
   while (structural_character != nullptr) {
     switch (json_c[*(structural_character)]) {
@@ -603,6 +576,7 @@ void Engine::handle_record_result(ResultSet &result_set) {
         if (current_depth == query_depth && size_t(*structural_character) != start_pos) {
           // Record a result at this position
           result_set.record_result(start_pos + 1, size_t(*structural_character) - 1);
+          auto previous_opcode = instructions[current_instruction_pointer - 1].opcode;
           if (previous_opcode == jsonpath::Opcode::FindIndex ||
               previous_opcode == jsonpath::Opcode::FindRange) {
             // The closing comma of the result could also be the starting comma of the next result.
@@ -639,9 +613,9 @@ void Engine::handle_record_result(ResultSet &result_set) {
 
 // Advance to the next state.
 void Engine::advance() {
-  assert(current_instruction_pointer < instructions.size());
+  assert(current_instruction_pointer < instruction_count);
 
-  stack.emplace(
+  stack.emplace_back(
     current_instruction_pointer,
     current_structure_type,
     current_depth,
@@ -654,7 +628,6 @@ void Engine::advance() {
 
 // Exit the current state, tail-skipping to to end of the structure.
 void Engine::fallback() {
-  const char *const json_c = json.begin();
   assert(!stack.empty());
 
   auto last_structural = skip_current_structure(current_structure_type);
@@ -678,9 +651,9 @@ void Engine::back() {
     return;
   }
 
-  auto frame = stack.top();
+  const auto &frame = stack.back();
   restore_state_from_stack(frame);
-  stack.pop();
+  stack.pop_back();
 }
 
 // Enters a JSON structure.
@@ -699,7 +672,7 @@ void Engine::exit(StructureType structure_type) {
 }
 
 // Restore the engine state from a stack frame.
-void Engine::restore_state_from_stack(StackFrame &frame) {
+void Engine::restore_state_from_stack(const StackFrame &frame) {
   current_depth = frame.depth;
   current_structure_type = frame.structure_type;
   current_instruction_pointer = frame.instruction_pointer;
@@ -724,12 +697,12 @@ uint32_t *Engine::passed_previous_structural() {
 }
 
 size_t Engine::calculate_query_depth() {
-  return byte_code->query_instruction_depth[current_instruction_pointer];
+  return query_instruction_depths[current_instruction_pointer];
 }
 
 // Skip the current JSON structure.
 uint32_t *Engine::skip_current_structure(StructureType structure_type) {
-  const char *const json_c = json.begin();
+  const char *const json_c = json_data;
   size_t skip_depth = current_depth;
 
   uint32_t* structural_character = iterator->get_next_structural_character();

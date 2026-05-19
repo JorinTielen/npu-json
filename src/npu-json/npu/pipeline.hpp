@@ -8,6 +8,7 @@
 #include <npu-json/npu/chunk-index.hpp>
 #include <npu-json/npu/kernel.hpp>
 #include <npu-json/npu/queue.hpp>
+#include <npu-json/util/tracer.hpp>
 #include <npu-json/engine.hpp>
 
 namespace npu {
@@ -40,6 +41,7 @@ private:
   std::unique_ptr<Kernel> kernel;
 
   std::size_t chunk_idx = 0;
+  util::trace_id automaton_trace = util::INVALID_TRACE_ID;
 
   std::size_t current_block = 0;
   std::size_t current_pos_in_block = 0;

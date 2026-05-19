@@ -6,17 +6,33 @@
 
 namespace util {
 
-trace_id util::Tracer::start_trace(std::string task) {
+void Tracer::set_enabled(bool value) {
+  enabled.store(value, std::memory_order_relaxed);
+}
+
+bool Tracer::is_enabled() const {
+  return enabled.load(std::memory_order_relaxed);
+}
+
+trace_id util::Tracer::start_trace(std::string_view task) {
+  if (!is_enabled()) {
+    return INVALID_TRACE_ID;
+  }
+
   std::lock_guard<std::mutex> guard(tracer_mutex);
 
   auto start = std::chrono::high_resolution_clock::now();
   auto epoch = start.time_since_epoch().count();
   auto start_ns = std::chrono::duration<uint64_t, std::nano>(epoch);
-  traces.emplace_back(task, start_ns.count());
+  traces.emplace_back(std::string(task), start_ns.count());
   return traces.size() - 1;
 }
 
 void Tracer::finish_trace(trace_id id) {
+  if (id == INVALID_TRACE_ID) {
+    return;
+  }
+
   std::lock_guard<std::mutex> guard(tracer_mutex);
 
   auto& trace = traces[id];
