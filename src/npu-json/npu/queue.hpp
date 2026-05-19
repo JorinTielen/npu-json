@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <condition_variable>
@@ -8,6 +9,7 @@
 #include <mutex>
 
 #include <npu-json/engine.hpp>
+#include <npu-json/util/tracer.hpp>
 
 namespace npu {
 
@@ -36,9 +38,19 @@ public:
     if (next_reserved_write_idx == N) next_reserved_write_idx = 0;
 
     // Wait until a space is free if the queue is full.
+    auto queue_is_full = next_reserved_write_idx == read_idx;
+    util::trace_id wait_trace;
+    if (queue_is_full) {
+      wait_trace = util::Tracer::get_instance().start_trace("index_queue_full_wait");
+    }
+
     queue_full_condition.wait(guard, [this, next_reserved_write_idx]{
       return next_reserved_write_idx != read_idx;
     });
+
+    if (queue_is_full) {
+      util::Tracer::get_instance().finish_trace(wait_trace);
+    }
 
     auto ptr = &pool->data()[reserved_write_idx];
 
@@ -54,12 +66,17 @@ public:
   void release_write_space(T* space) {
     std::lock_guard<std::mutex> guard(queue_mutex);
 
+#ifndef NDEBUG
     auto pool = record_pool.get();
+#endif
 
     auto next_write_idx = write_idx + 1;
     if (next_write_idx == N) next_write_idx = 0;
 
     assert(space == &pool->data()[write_idx]);
+#ifdef NDEBUG
+    (void)space;
+#endif
 
     write_idx = next_write_idx;
 
@@ -76,9 +93,19 @@ public:
     auto pool = record_pool.get();
 
     // Wait until a token is produced or the producer is done.
+    auto queue_is_empty = read_idx == write_idx && !producer_done;
+    util::trace_id wait_trace;
+    if (queue_is_empty) {
+      wait_trace = util::Tracer::get_instance().start_trace("index_queue_empty_wait");
+    }
+
     queue_empty_condition.wait(guard, [this]{
       return read_idx != write_idx || producer_done;
     });
+
+    if (queue_is_empty) {
+      util::Tracer::get_instance().finish_trace(wait_trace);
+    }
 
     if (read_idx == write_idx && producer_done) {
       return nullptr;
@@ -91,9 +118,14 @@ public:
   void release_token(T* token) {
     std::lock_guard<std::mutex> guard(queue_mutex);
 
+#ifndef NDEBUG
     auto pool = record_pool.get();
+#endif
 
     assert(token == &pool->data()[read_idx]);
+#ifdef NDEBUG
+    (void)token;
+#endif
 
     auto next_read_idx = read_idx + 1;
     if (next_read_idx == N) next_read_idx = 0;

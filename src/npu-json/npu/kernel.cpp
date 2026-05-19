@@ -599,28 +599,34 @@ void Kernel::call(ChunkIndex *index, size_t chunk_idx, std::function<void()> cal
   if (previous_run.has_value()) {
     prepare_kernel_input(chunk, *index, previous_escape_carry, !current);
 
+    auto npu_wait_trace = tracer.start_trace("npu_wait");
     previous_run->handle.wait();
+    tracer.finish_trace(npu_wait_trace);
 
+    auto npu_output_sync_trace = tracer.start_trace("npu_output_sync");
     string_buffers[current].output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
     structural_buffers[current].output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-
-    tracer.finish_trace(trace);
+    tracer.finish_trace(npu_output_sync_trace);
 
     current = !current;
   } else {
     prepare_kernel_input(chunk, *index, previous_escape_carry, current);
   }
 
-  trace = tracer.start_trace("construct_combined_index_npu");
-
+  // Trace synchronous host/NPU boundaries separately. A launch-to-wait span
+  // crosses calls and can include queue backpressure, overstating NPU time.
+  auto npu_input_sync_trace = tracer.start_trace("npu_input_sync");
   string_buffers[current].input.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  tracer.finish_trace(npu_input_sync_trace);
 
   // Look up the sub-buffer for this chunk
   size_t sub_buffer_idx = aligned_offset / Engine::CHUNK_SIZE;
   xrt::bo &sub_input = is_tail ? tail_input : json_chunk_inputs[sub_buffer_idx];
 
+  auto npu_submit_trace = tracer.start_trace("npu_submit");
   auto run = kernel(3, instr, instr_size, sub_input, string_buffers[current].input,
                     string_buffers[current].output, structural_buffers[current].output);
+  tracer.finish_trace(npu_submit_trace);
 
   if (previous_run.has_value()) {
     read_kernel_output(
@@ -648,12 +654,14 @@ void Kernel::wait_for_previous() {
 
   auto &tracer = util::Tracer::get_instance();
 
+  auto npu_wait_trace = tracer.start_trace("npu_wait");
   previous_run->handle.wait();
+  tracer.finish_trace(npu_wait_trace);
 
+  auto npu_output_sync_trace = tracer.start_trace("npu_output_sync");
   string_buffers[current].output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
   structural_buffers[current].output.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-
-  tracer.finish_trace(trace);
+  tracer.finish_trace(npu_output_sync_trace);
 
   current = !current;
 

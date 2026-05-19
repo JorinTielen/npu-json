@@ -7,7 +7,6 @@
 #include <vector>
 
 #include <npu-json/npu/chunk-index.hpp>
-#include <npu-json/util/tracer.hpp>
 
 #ifndef NPU_JSON_CPU_BACKEND
 #include <npu-json/util/xrt.hpp>
@@ -86,8 +85,6 @@ private:
   void prepare_kernel_input(const char *chunk, ChunkIndex &index, bool first_escape_carry, size_t buffer);
   void read_kernel_output(ChunkIndex &index, bool first_string_carry, size_t chunk_idx);
 #endif
-
-  util::trace_id trace;
 };
 
 void construct_escape_carry_index(const char *chunk, ChunkIndex &index, bool first_escape_carry);
