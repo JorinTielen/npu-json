@@ -3,6 +3,7 @@
 #include <cstring>
 #include <chrono>
 #include <iostream>
+#include <iomanip>
 
 #include <npu-json/jsonpath/parser.hpp>
 #include <npu-json/jsonpath/query.hpp>
@@ -10,6 +11,9 @@
 #include <npu-json/util/tracer.hpp>
 #include <npu-json/engine.hpp>
 #include <npu-json/options.hpp>
+
+using Clock = std::chrono::high_resolution_clock;
+using Ms = std::chrono::duration<double, std::milli>;
 
 void run_bench_warm(size_t data_size, Engine &engine) {
   std::cout << "Starting benchmark..." << std::endl;
@@ -51,6 +55,7 @@ int main(int argc, char *argv[]) {
 
   bool bench = false;
   bool cold = false;
+  bool cold_detail = false;
   bool trace = false;
 
   for (int i = 3; i < argc; i++) {
@@ -59,7 +64,11 @@ int main(int argc, char *argv[]) {
       bench = true;
       if (i + 1 < argc) {
         std::string next(argv[i + 1]);
-        if (next == "cold") {
+        if (next == "cold-detail") {
+          cold = true;
+          cold_detail = true;
+          i++;
+        } else if (next == "cold") {
           cold = true;
           i++;
         } else if (next == "warm") {
@@ -76,35 +85,80 @@ int main(int argc, char *argv[]) {
     std::cout << "File: " << argv[1] << std::endl;
     std::cout << "Query: " << argv[2] << std::endl;
 
-    auto file_start = std::chrono::high_resolution_clock::now();
+    auto file_start = Clock::now();
     auto buf = util::load_file_hugepage(argv[1]);
-    auto file_end = std::chrono::high_resolution_clock::now();
-    auto file_read_ms = std::chrono::duration<double, std::milli>(file_end - file_start).count();
+    auto file_end = Clock::now();
+    auto file_read_ms = Ms(file_end - file_start).count();
 
     double gigabytes = (double)buf.size / 1000.0 / 1000.0 / 1000.0;
 
     std::cout << "Data size: " << gigabytes << " GB" << std::endl;
     std::cout << "File read time: " << file_read_ms << " ms" << std::endl;
 
-    auto cold_start = std::chrono::high_resolution_clock::now();
+    if (cold_detail) {
+      extern bool g_engine_cold_detail;
+      g_engine_cold_detail = true;
 
-    auto parser = jsonpath::Parser();
-    auto query = parser.parse(argv[2]);
-    std::string_view json_sv(static_cast<const char*>(buf.data), buf.size);
-    auto engine = Engine(*query, json_sv);
-    engine.run_query();
+      std::cout << "\n--- Detailed Cold Start Breakdown ---" << std::endl;
+      std::cout << std::fixed << std::setprecision(3);
 
-    auto cold_end = std::chrono::high_resolution_clock::now();
-    auto cold_ms = std::chrono::duration<double, std::milli>(cold_end - cold_start).count();
+      auto t0 = Clock::now();
 
-    double total_ms = file_read_ms + cold_ms;
-    double cold_seconds = cold_ms / 1000.0;
-    double total_seconds = total_ms / 1000.0;
+      auto parser = jsonpath::Parser();
+      auto t1 = Clock::now();
 
-    std::cout << "Cold start (excl. file read): " << cold_ms << " ms" << std::endl;
-    std::cout << "Cold start (incl. file read): " << total_ms << " ms" << std::endl;
-    std::cout << "Throughput (excl. file read): " << gigabytes / cold_seconds << " GB/s" << std::endl;
-    std::cout << "Throughput (incl. file read): " << gigabytes / total_seconds << " GB/s" << std::endl;
+      auto query = parser.parse(argv[2]);
+      auto t2 = Clock::now();
+
+      std::string_view json_sv(static_cast<const char*>(buf.data), buf.size);
+      auto engine = Engine(*query, json_sv);
+      auto t3 = Clock::now();
+
+      engine.run_query();
+      auto t4 = Clock::now();
+
+      double d_parser_ctor  = Ms(t1 - t0).count();
+      double d_query_parse  = Ms(t2 - t1).count();
+      double d_engine_ctor  = Ms(t3 - t2).count();
+      double d_first_query  = Ms(t4 - t3).count();
+      double d_total         = Ms(t4 - t0).count();
+
+      std::cout << "  1. Parser construct              : " << std::setw(8) << d_parser_ctor  << " ms" << std::endl;
+      std::cout << "  2. Query parse                   : " << std::setw(8) << d_query_parse  << " ms" << std::endl;
+      std::cout << "  3. Engine construct              : " << std::setw(8) << d_engine_ctor  << " ms" << std::endl;
+      std::cout << "  4. First run_query()             : " << std::setw(8) << d_first_query  << " ms" << std::endl;
+      std::cout << "  -------------------------------------------" << std::endl;
+      std::cout << "     Total (excl. file read)       : " << std::setw(8) << d_total         << " ms" << std::endl;
+
+      double total_ms = file_read_ms + d_total;
+      double cold_seconds = d_total / 1000.0;
+      double total_seconds = total_ms / 1000.0;
+
+      std::cout << "\nCold start (excl. file read): " << d_total << " ms" << std::endl;
+      std::cout << "Cold start (incl. file read): " << total_ms << " ms" << std::endl;
+      std::cout << "Throughput (excl. file read): " << gigabytes / cold_seconds << " GB/s" << std::endl;
+      std::cout << "Throughput (incl. file read): " << gigabytes / total_seconds << " GB/s" << std::endl;
+    } else {
+      auto cold_start = Clock::now();
+
+      auto parser = jsonpath::Parser();
+      auto query = parser.parse(argv[2]);
+      std::string_view json_sv(static_cast<const char*>(buf.data), buf.size);
+      auto engine = Engine(*query, json_sv);
+      engine.run_query();
+
+      auto cold_end = Clock::now();
+      auto cold_ms = Ms(cold_end - cold_start).count();
+
+      double total_ms = file_read_ms + cold_ms;
+      double cold_seconds = cold_ms / 1000.0;
+      double total_seconds = total_ms / 1000.0;
+
+      std::cout << "Cold start (excl. file read): " << cold_ms << " ms" << std::endl;
+      std::cout << "Cold start (incl. file read): " << total_ms << " ms" << std::endl;
+      std::cout << "Throughput (excl. file read): " << gigabytes / cold_seconds << " GB/s" << std::endl;
+      std::cout << "Throughput (incl. file read): " << gigabytes / total_seconds << " GB/s" << std::endl;
+    }
 
     return 0;
   }
